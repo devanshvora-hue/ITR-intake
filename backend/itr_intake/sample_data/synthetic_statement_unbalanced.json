@@ -1,0 +1,99 @@
+{
+  "_notice": "SYNTHETIC DEMO DATA - fictional client, accounts and transactions. Not real customer data.",
+  "description": "Deliberately unbalanced synthetic statement: the stated closing balance is 1,000.00 higher than opening + credits - debits.",
+  "period_start": "2025-04-01",
+  "period_end": "2025-04-30",
+  "opening_balance": "125000.00",
+  "closing_balance": "171000.00",
+  "client_profile": {
+    "name": "Arjun Mehta",
+    "accounts": [
+      {
+        "bank_name": "Example Bank",
+        "account_number": "50100012345678",
+        "bank_identifiers": [
+          "EXAMPLE BANK",
+          "EXMP"
+        ]
+      },
+      {
+        "bank_name": "SBI",
+        "account_number": "39876543210",
+        "bank_identifiers": [
+          "SBI",
+          "SBIN",
+          "STATE BANK"
+        ]
+      }
+    ],
+    "upi_ids": [
+      "arjun.demo@okexample"
+    ],
+    "mobile_numbers": [
+      "9800000001"
+    ],
+    "family_members": [
+      {
+        "name": "Priya Mehta",
+        "relation": "spouse",
+        "aliases": []
+      },
+      {
+        "name": "Suresh Mehta",
+        "relation": "father",
+        "aliases": []
+      }
+    ],
+    "employers": [
+      "Examplesoft Technologies Pvt Ltd"
+    ],
+    "loan_account_numbers": [
+      "0012345"
+    ],
+    "client_rules": [
+      {
+        "description": "Food delivery payments are personal expenses.",
+        "patterns": [
+          "\\bSWIGGY\\b",
+          "\\bZOMATO\\b"
+        ],
+        "category": "Personal Expenses",
+        "direction": "debit"
+      }
+    ]
+  },
+  "transactions": [
+    {
+      "row_number": 1,
+      "date": "01/04/2025",
+      "narration": "NEFT CR-CITI0000001-EXAMPLESOFT TECHNOLOGIES PVT LTD-SALARY APR 2025",
+      "debit": "",
+      "credit": "85,000.00",
+      "balance": "210,000.00"
+    },
+    {
+      "row_number": 2,
+      "date": "03/04/2025",
+      "narration": "UPI/DR/509312345678/ARJUN MEHTA/SBIN/arjunm@oksbi/Own account",
+      "debit": "25,000.00",
+      "credit": "",
+      "balance": "185,000.00"
+    },
+    {
+      "row_number": 3,
+      "date": "05/04/2025",
+      "narration": "IMPS/P2A/509512345679/PRIYA MEHTA/HDFC/Household",
+      "debit": "10,000.00",
+      "credit": "",
+      "balance": "175,000.00"
+    },
+    {
+      "row_number": 4,
+      "date": "07/04/2025",
+      "narration": "ACH D- BSE STAR MF-EXAMPLE MUTUAL FUND SIP",
+      "debit": "5,000.00",
+      "credit": "",
+      "balance": "170,000.00"
+    }
+  ]
+}

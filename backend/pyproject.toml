@@ -1,0 +1,11 @@
+[project]
+name = "itr-intake-backend"
+version = "0.1.0"
+description = "ITR Intake backend: deterministic bank-transaction validation and classification."
+requires-python = ">=3.11"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+# Keep pytest from writing a .pytest_cache directory into the project.
+addopts = "-p no:cacheprovider"
