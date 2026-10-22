@@ -205,12 +205,29 @@ to start over.
 - Request handlers never send e-mail. They queue a row in `email_outbox`
   (`email_service.queue_ca_email`); the separate worker
   (`python -m itr_intake_server.email_worker --dev [--once]`) delivers it.
-- Only a simulated sender exists. It writes to the development-only
+- Development: a simulated sender writes to the development-only
   `dev_mailbox` table (shown at `/dev/outbox`) and the row is recorded as
-  `simulated`, never `sent`. The worker refuses to run without `--dev` /
-  `ITR_ENV=development`; in production nothing is queued and the API reports
-  `email_delivery: "not_configured"`. No network access, provider or
-  credentials exist. `ProviderSender` is only the shape of a future adapter.
+  `simulated`, never `sent`. Development always simulates, even if SMTP is set.
+- Production: SMTP (`smtp_sender.py`, standard library only; works with any
+  provider offering SMTP submission). Configured only by environment variables:
+
+  | Variable | Meaning |
+  |---|---|
+  | `ITR_SMTP_HOST` | required to enable e-mail |
+  | `ITR_EMAIL_FROM` | required plain sender address, e.g. `no-reply@example.com` |
+  | `ITR_SMTP_PORT` | default 587 (or 465 with implicit TLS) |
+  | `ITR_SMTP_TLS` | `starttls` (default) or `implicit`; TLS with certificate checks is always used |
+  | `ITR_SMTP_USERNAME` / `ITR_SMTP_PASSWORD` | optional, set together; never logged |
+
+  With these set, the API queues mail and reports `email_delivery: "email"`;
+  run `python -m itr_intake_server.email_worker` (no `--dev`) as a separate
+  process with the same variables and `ITR_DB_PATH`, and rows become `sent`.
+  Without them, nothing is queued, the API reports `"not_configured"` and the
+  worker refuses to start. A partial or invalid configuration stops the API
+  and the worker at startup with a message naming the variable (never its
+  value). SMTP failures map to fixed codes: permanent rejections
+  (`recipient_refused`, `rejected`, `invalid_message`) are not retried;
+  `auth_failed`, `temporary_failure`, `tls_failed`, `connection_failed` are.
 - Retries: 1 min, 5 min, 30 min, 2 h after the 1st–4th failure; the 5th
   failure (or a non-retryable error) makes the row `dead`. Error codes are
   short fixed strings. `python -m itr_intake_server.admin email-status` shows

@@ -530,7 +530,10 @@ def test_the_ca_dashboard_data_shows_the_new_case(app, firm, visitor):
     assert listed == [{"reference": case["reference"], "financial_year": FY, "status": "draft",
                        "updated_at": case["updated_at"], "created_at": case["created_at"],
                        "client_first_name": "Asha", "client_email": CLIENT_EMAIL,
-                       "profile": {"full_name": None, "bank_name": None, "account_last4": None, "complete": False}}]
+                       "profile": {"full_name": None, "bank_name": None, "account_last4": None, "complete": False},
+                       "readiness": {"statement": "none", "unverified_reasons": [], "documents": {
+                           "required_outstanding": 0, "required_received": 0, "required_waived": 0,
+                           "optional_outstanding": 0, "total_requests": 0}}}]
 
 
 def test_the_database_refuses_a_firm_code_from_another_firm(app, db_path):

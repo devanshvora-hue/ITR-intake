@@ -2,13 +2,14 @@
 
     python -m itr_intake_server.email_worker --dev            # run until Ctrl+C
     python -m itr_intake_server.email_worker --dev --once     # one pass, then exit
+    python -m itr_intake_server.email_worker                  # production: send over SMTP
 
-In this stage the only sender is the simulated one, so the worker runs only
-in the development environment; messages land in the development inbox
-(`/dev/outbox`) and are recorded as 'simulated'. In production it refuses to
-start: there is no provider, and pretending to deliver would be dishonest.
-No network connection is opened. Output carries counts and masked addresses
-only, never links or message bodies.
+Development: messages land in the development inbox (`/dev/outbox`) and are
+recorded as 'simulated'; no network connection is opened. Production: messages
+are sent with the SMTP provider from the ITR_SMTP_* / ITR_EMAIL_FROM variables
+(see smtp_sender.py) and recorded as 'sent'. Without that configuration the
+worker refuses to start rather than pretend to deliver. Output carries counts
+and masked addresses only, never links, message bodies or credentials.
 """
 
 import argparse
@@ -21,7 +22,7 @@ from pathlib import Path
 from . import email_service as emails
 from .db import DEFAULT_DATABASE_PATH, connect, initialize_database
 from .dev_outbox import DevOutbox
-from .settings import Settings
+from .smtp_sender import SmtpConfig, SmtpConfigError, SmtpSender
 
 DEFAULT_INTERVAL_SECONDS = 5.0
 
@@ -43,26 +44,36 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     environment = "development" if args.dev else os.environ.get("ITR_ENV", "production")
-    if environment != "development":
-        print("No email provider is configured, and simulated delivery is development-only. "
-              "Nothing was sent. (Use --dev for local development.)", file=sys.stderr)
-        return 2
     if args.interval < 1:
         print("--interval must be at least 1 second.", file=sys.stderr)
         return 2
 
     path = Path(args.db or os.environ.get("ITR_DB_PATH") or DEFAULT_DATABASE_PATH)
+    if environment == "development":
+        sender, label, banner = (emails.SimulatedSender(DevOutbox(path), development=True), "simulated",
+                                 "development: messages are simulated, nothing is sent")
+    else:
+        try:
+            config = SmtpConfig.from_env()
+        except SmtpConfigError as exc:
+            print(f"Configuration error: {exc}", file=sys.stderr)
+            return 2
+        if config is None:
+            print("No email provider is configured (set ITR_SMTP_HOST and ITR_EMAIL_FROM), and simulated "
+                  "delivery is development-only. Nothing was sent. (Use --dev for local development.)",
+                  file=sys.stderr)
+            return 2
+        sender, label, banner = SmtpSender(config), "sent", f"production: sending via {config.host}:{config.port}"
+
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(message)s")
     initialize_database(path).close()
-    settings = Settings(environment="development", database_path=path)
-    sender = emails.SimulatedSender(DevOutbox(settings.database_path), development=True)
 
-    print("Email worker started (development: messages are simulated, nothing is sent). Ctrl+C to stop.")
+    print(f"Email worker started ({banner}). Ctrl+C to stop.")
     try:
         while True:
             summary = run_once(path, sender)
             if summary.delivered or summary.retried or summary.dead or summary.expired:
-                print(f"simulated={summary.delivered} retrying={summary.retried} dead={summary.dead} "
+                print(f"{label}={summary.delivered} retrying={summary.retried} dead={summary.dead} "
                       f"expired_bodies={summary.expired}")
             if args.once:
                 return 0

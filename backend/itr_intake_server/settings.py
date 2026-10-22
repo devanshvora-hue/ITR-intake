@@ -4,7 +4,7 @@ Two environments:
 - "production" (the default): Secure `__Host-` cookies, origins must be
   configured explicitly as https, and no development features exist at all.
 - "development": loopback-only local use, plain-http cookies, and an
-  in-memory e-mail simulation. It is only enabled by an explicit choice
+  in-memory e-mail simulation (always simulated, even if SMTP is configured). It is only enabled by an explicit choice
   (`python -m itr_intake_server --dev` or ITR_ENV=development).
 """
 
@@ -13,6 +13,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from .db import DEFAULT_DATABASE_PATH
+from .smtp_sender import SmtpConfig
 
 ENVIRONMENTS = ("development", "production")
 _DEV_ORIGINS = ("http://localhost:3000", "http://127.0.0.1:3000")
@@ -29,6 +30,8 @@ class Settings:
     storage_root: Path | None = None
     # xpdf pdftotext; None means ITR_PDFTOTEXT or `pdftotext` on PATH (checked at startup).
     pdftotext_path: str | None = None
+    # Real e-mail delivery (production only); None means e-mail is not configured.
+    smtp: SmtpConfig | None = field(default=None, repr=False)
 
     def __post_init__(self) -> None:
         if self.environment not in ENVIRONMENTS:
@@ -52,10 +55,16 @@ class Settings:
 
     @property
     def email_delivery(self) -> str:
-        """'simulated' (development: queued for the simulated sender) or
-        'not_configured' (production: no e-mail provider exists yet, so
-        nothing is queued or sent)."""
-        return "simulated" if self.development else "not_configured"
+        """'simulated' (development: queued for the simulated sender), 'email'
+        (production with SMTP: queued for the e-mail worker to send) or
+        'not_configured' (production without SMTP: nothing is queued or sent)."""
+        if self.development:
+            return "simulated"
+        return "email" if self.smtp is not None else "not_configured"
+
+    @property
+    def can_queue_email(self) -> bool:
+        return self.email_delivery != "not_configured"
 
     @property
     def cookie_secure(self) -> bool:
@@ -77,6 +86,7 @@ class Settings:
             database_path=Path(os.environ.get("ITR_DB_PATH", str(DEFAULT_DATABASE_PATH))),
             allowed_origins=origins,
             public_base_url=os.environ.get("ITR_PUBLIC_BASE_URL", "http://localhost:3000"),
+            smtp=SmtpConfig.from_env(),
         )
         values.update(overrides)
         return cls(**values)

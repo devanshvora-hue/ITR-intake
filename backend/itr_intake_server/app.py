@@ -245,11 +245,11 @@ def _send_verification(request: Request, conn, user_id: str, email: str) -> str:
     """Issue a verification token and queue its e-mail. Returns the delivery
     mode. The request never sends anything: in development the message waits
     in the database outbox for the separate e-mail worker (simulated delivery);
-    in production no provider exists yet, so nothing is queued or sent and we
-    say so."""
+    in production it waits for the worker to send it over SMTP, or, if SMTP is
+    not configured, nothing is queued or sent and we say so."""
     settings: Settings = request.app.state.settings
     token = ca_auth.start_email_verification(conn, user_id)
-    if not settings.development:
+    if not settings.can_queue_email:
         logger.warning("verification email not queued: no email provider is configured")
         return "not_configured"
     emails.queue_ca_email(conn, template=emails.TEMPLATE_VERIFY_EMAIL, recipient=email, token=token,
@@ -345,7 +345,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             except ca_auth.RegistrationError as exc:
                 if exc.code in ("email_taken", "registration_number_taken"):
                     # Same answer as a new registration: no account enumeration.
-                    return JSONResponse(_delivery_body(settings, "simulated" if settings.development else "not_configured"),
+                    return JSONResponse(_delivery_body(settings, settings.email_delivery),
                                         status_code=202)
                 return _error(400, "invalid_registration", "Please check the highlighted details.", code=exc.code)
             delivery = _send_verification(request, conn, reg.user_id, reg.email)
@@ -362,7 +362,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     @app.post("/api/ca/resend-verification", status_code=202)
     def resend_verification(body: EmailIn, request: Request):
-        delivery = "simulated" if settings.development else "not_configured"
+        delivery = settings.email_delivery
         with _db(request) as conn:
             # Per hashed address only (a per-peer limit would be site-wide behind the
             # Next.js proxy). Over the limit the answer is unchanged; nothing is sent.
@@ -393,7 +393,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 _within_limit(conn, "reset-peer", _peer(request), RESET_REQUESTS_PER_PEER, _HOUR),
                 _within_limit(conn, "reset-all", "all", RESET_REQUESTS_ALL, _HOUR),
             ]
-            if all(checks) and settings.development:
+            if all(checks) and settings.can_queue_email:
                 result = ca_auth.request_password_reset(conn, body.email)
                 if result.should_send:
                     emails.queue_ca_email(conn, template=emails.TEMPLATE_PASSWORD_RESET, recipient=result.email,
@@ -724,7 +724,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 _within_limit(conn, "client-start-all", "all", CLIENT_STARTS_ALL, _HOUR),
             ]
             guessing = _limit_reached(conn, "client-bad-code-peer", peer, CLIENT_BAD_CODES_PER_PEER, _HOUR)
-            if all(checks) and not guessing and settings.development:
+            if all(checks) and not guessing and settings.can_queue_email:
                 result = client_auth.start_client_onboarding(conn, body.firm_code, body.email)
                 if result.should_send:
                     emails.queue_ca_email(conn, template=emails.TEMPLATE_CLIENT_SIGN_IN, recipient=result.email,
