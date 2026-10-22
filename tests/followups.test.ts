@@ -232,6 +232,25 @@ describe("stale CA decisions", () => {
   });
 });
 
+describe("decisions described against the current rules", () => {
+  it("shows a change as a confirmation once the rules reach the CA's category, keeping the category", async () => {
+    const { ca, reference } = await caseWith(GOOD);
+    await decide(ca, reference, 3, { category: "Business / Professional Receipts" });
+    let row = (await detail(ca, reference)).review.rows.find((r: ReviewRow) => r.row_number === 3);
+    expect([row.category, row.classifier_category, row.decision.decision]).toEqual(["Business / Professional Receipts",
+      "Others – Needs Review", "changed"]);
+    // As if a newer rule set now classified the same, unchanged row the way the CA did.
+    await env.db.query("UPDATE statement_rows SET category = 'Business / Professional Receipts' WHERE row_number = 3");
+    row = (await detail(ca, reference)).review.rows.find((r: ReviewRow) => r.row_number === 3);
+    expect([row.category, row.group, row.decision.decision]).toEqual(["Business / Professional Receipts", "reviewed", "confirmed"]);
+    const wb = await workbook(ca, reference);
+    const all = wb.getWorksheet("All Transactions")!;
+    const reason = all.getRows(2, all.rowCount - 1)!.find((r) => r.getCell(1).value === 3)!.getCell(12).value;
+    expect(String(reason)).toMatch(/^CA confirmed the category\./);
+    expect(await rows("SELECT decision FROM classification_corrections")).toEqual([{ decision: "changed" }]); // the record is unchanged
+  });
+});
+
 describe("dashboard and workbook consistency", () => {
   it("gives the same category totals, flags and review queue, before and after a decision", async () => {
     const { ca, reference } = await caseWith(GOOD);

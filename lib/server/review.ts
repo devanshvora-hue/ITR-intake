@@ -231,7 +231,9 @@ export async function storedRows(db: Db, firmId: string, caseId: string, uploadI
   let applied = 0;
   const reviewed = rows.map((r) => {
     const d = decisions.get(r.row_number);
-    const decision = d && r.is_valid && d.fingerprint === rowFingerprint(r) ? d : null;
+    const matched = d && r.is_valid && d.fingerprint === rowFingerprint(r) ? d : null;
+    // Described against the rules now in force: once the rules reach the CA's category, the decision confirms them.
+    const decision = matched && { ...matched, decision: matched.category === r.category ? "confirmed" as const : "changed" as const };
     if (decision) applied++;
     const explained = decision !== null && decision.category !== "Others – Needs Review";
     return { ...r, classifier_category: r.category, category: decision ? decision.category : r.category, decision,
