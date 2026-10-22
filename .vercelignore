@@ -1,0 +1,6 @@
+# The site (pages and API) is the Next.js app. The old Python backend stays in
+# the repository as a reference until the migration is finished, but it is
+# never deployed, so Vercel must not detect it as a Python project.
+backend/
+requirements.txt
+test_gemini.py
