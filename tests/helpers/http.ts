@@ -25,14 +25,15 @@ export class Client {
   constructor(private readonly origin = DEV_ORIGIN) {}
 
   async call(handler: Handler, options: { method?: string; path?: string; body?: unknown; params?: Record<string, string>;
-    headers?: Record<string, string>; csrf?: boolean } = {}): Promise<Response> {
-    const method = options.method ?? (options.body === undefined ? "GET" : "POST");
+    headers?: Record<string, string>; csrf?: boolean; rawBody?: Uint8Array } = {}): Promise<Response> {
+    const method = options.method ?? (options.body === undefined && options.rawBody === undefined ? "GET" : "POST");
     const headers: Record<string, string> = { ...(options.body !== undefined ? { "content-type": "application/json" } : {}) };
     if (method !== "GET" && options.csrf !== false) Object.assign(headers, { origin: this.origin, "x-itr-request": "1" });
     if (this.cookies.size) headers.cookie = [...this.cookies].map(([k, v]) => `${k}=${v}`).join("; ");
     Object.assign(headers, options.headers ?? {});
     const request = new Request(`${this.origin}${options.path ?? "/api/x"}`, {
-      method, headers, body: options.body === undefined ? undefined : JSON.stringify(options.body),
+      method, headers,
+      body: options.rawBody !== undefined ? new Uint8Array(options.rawBody) : options.body === undefined ? undefined : JSON.stringify(options.body),
     });
     const response = await handler(request, { params: Promise.resolve(options.params ?? {}) });
     for (const cookie of response.headers.getSetCookie()) {
