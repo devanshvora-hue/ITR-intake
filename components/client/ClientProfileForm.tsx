@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { FormMessage, primaryButton } from "@/components/ca/Field";
 import { postJson } from "@/lib/api-client";
+import { INCOME_SOURCES } from "@/lib/checklist";
 import type { ClientProfile } from "@/lib/client-session";
 
 const FIELD_ERRORS: Record<string, string> = {
@@ -11,13 +12,14 @@ const FIELD_ERRORS: Record<string, string> = {
   bank_name: "Enter your bank's name.",
   account_last4: "Enter exactly the last 4 digits of the account, or leave it blank.",
   financial_year: "The financial year does not match this intake.",
+  income_sources: "Please choose from the listed options only.",
 };
 
 const inputClass =
   "mt-1.5 w-full rounded-lg border border-line bg-white px-3 py-2 text-sm focus:border-teal focus:outline-none";
 
-// Collects only what statement processing needs. Never asks for PAN,
-// Aadhaar, full account numbers or passwords.
+// Collects only what statement processing and the document checklist need.
+// Never asks for PAN, Aadhaar, full account numbers or passwords.
 export function ClientProfileForm({ reference, financialYear, profile }: {
   reference: string;
   financialYear: string;
@@ -41,6 +43,7 @@ export function ClientProfileForm({ reference, financialYear, profile }: {
       bank_name: String(form.get("bank_name") ?? ""),
       account_last4: last4 === "" ? null : last4,
       financial_year: financialYear,
+      income_sources: form.getAll("income_sources").map(String),
     });
     setBusy(false);
     if (result.ok) {
@@ -81,6 +84,23 @@ export function ClientProfileForm({ reference, financialYear, profile }: {
                autoComplete="off" defaultValue={profile.account_last4 ?? ""} className={`${inputClass} max-w-32`} />
         <p className="mt-1 text-xs text-ink-faint">Only the last 4 digits. Never enter your full account number.</p>
       </div>
+      <fieldset>
+        <legend className="block text-sm font-medium">
+          In FY {financialYear}, did any of these apply to you? <span className="font-normal text-ink-faint">(optional)</span>
+        </legend>
+        <p className="mt-1 text-xs text-ink-faint">
+          This only helps suggest which documents to gather. Leave everything unticked if you are not sure; your CA will ask.
+        </p>
+        <div className="mt-2 space-y-1.5">
+          {INCOME_SOURCES.map((s) => (
+            <label key={s.code} className="flex items-start gap-2 text-sm">
+              <input type="checkbox" name="income_sources" value={s.code} className="mt-0.5"
+                     defaultChecked={profile.income_sources?.includes(s.code)} />
+              {s.label}
+            </label>
+          ))}
+        </div>
+      </fieldset>
       <p className="text-sm text-ink-soft">Financial year: <span className="font-medium text-ink">FY {financialYear}</span></p>
       {errors.map((e) => <FormMessage key={e} tone="error">{e}</FormMessage>)}
       {saved && <FormMessage tone="info">Your details are saved.</FormMessage>}

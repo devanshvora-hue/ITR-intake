@@ -1,6 +1,7 @@
 // Server-only: resolve the visitor's client session by asking the API,
 // forwarding the browser's cookies. The API remains the authority; it derives
 // the client, firm and firm code from the session, never from the browser.
+import type { ClientChecklistItem } from "./checklist";
 import type { DocumentRequest } from "./document-requests";
 import { apiGet } from "./self-api";
 import type { StatementUpload } from "./statements";
@@ -10,6 +11,7 @@ export type ClientProfile = {
   full_name: string | null;
   bank_name: string | null;
   account_last4: string | null;
+  income_sources: string[];
   complete: boolean;
 };
 
@@ -22,6 +24,7 @@ export type ClientCase = {
   profile: ClientProfile;
   statements: StatementUpload[];
   document_requests: DocumentRequest[];
+  checklist: ClientChecklistItem[];
 };
 
 export type UploadLimits = { pdf_bytes: number; csv_bytes: number; statements_per_case: number; pdf_pages: number };

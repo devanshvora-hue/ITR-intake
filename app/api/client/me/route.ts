@@ -1,5 +1,6 @@
 import { canOpenCases, financialYearOptions, type CaseRow } from "@/lib/server/client-auth";
 import { profileView } from "@/lib/server/client-profile";
+import { clientChecklistView } from "@/lib/server/checklist";
 import { getDb } from "@/lib/server/db";
 import { apiRoute, json } from "@/lib/server/http";
 import { clientPrincipal, clientUnauthenticated } from "@/lib/server/principals";
@@ -24,6 +25,7 @@ export const GET = apiRoute(async (request) => {
       profile: profileView(c),
       statements: await caseUploads(db, principal.firmId, c.id),
       document_requests: await documentRequestViews(db, principal.firmId, c.id, false),
+      checklist: c.status === "closed" ? [] : await clientChecklistView(db, principal.firmId, c.id),
     }))),
     upload_limits: uploadLimits(),
     financial_years: financialYearOptions(),

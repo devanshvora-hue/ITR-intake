@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { clientCaseByReference } from "@/lib/server/client-auth";
 import { ProfileInvalid, profileView, saveProfile, validateProfile } from "@/lib/server/client-profile";
+import { refreshChecklist } from "@/lib/server/checklist";
 import { getDb } from "@/lib/server/db";
 import { apiRoute, json, jsonError, readJson } from "@/lib/server/http";
 import { limits } from "@/lib/server/limits";
@@ -15,6 +16,7 @@ const Body = z.strictObject({
   bank_name: z.string().max(200).nullish(),
   account_last4: z.string().max(10).nullish(),
   financial_year: z.string().max(7).nullish(),
+  income_sources: z.array(z.string().max(40)).max(20).nullish(),
 });
 
 export const POST = apiRoute(async (request, context: { params: Promise<{ reference: string }> }) => {
@@ -38,5 +40,6 @@ export const POST = apiRoute(async (request, context: { params: Promise<{ refere
     throw error;
   }
   const updated = await saveProfile(db, principal.firmId, found.id, values);
+  await refreshChecklist(db, principal.firmId, found.id); // declared income situations change the suggestions
   return json({ case: caseView(updated), profile: profileView(updated) });
 });

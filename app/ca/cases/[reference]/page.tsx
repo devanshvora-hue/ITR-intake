@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { CaseChecklist } from "@/components/ca/case/CaseChecklist";
 import { CaseDocumentRequests } from "@/components/ca/case/CaseDocumentRequests";
 import { CaseReviewPanel } from "@/components/ca/case/CaseReviewPanel";
 import { CaseStatements } from "@/components/ca/case/CaseStatements";
@@ -44,7 +45,7 @@ export default async function CaCasePage({ params }: { params: Promise<{ referen
     );
   }
 
-  const { case: c, profile, statements, review, document_requests } = result.detail;
+  const { case: c, profile, statements, review, document_requests, checklist } = result.detail;
   return (
     <Shell>
       <header className="mt-6 flex flex-wrap items-end justify-between gap-4">
@@ -79,6 +80,7 @@ export default async function CaCasePage({ params }: { params: Promise<{ referen
 
       <CaseStatements reference={c.reference} statements={statements} review={review} caseClosed={c.status === "closed"} />
       <CaseReviewPanel reference={c.reference} review={review} />
+      <CaseChecklist reference={c.reference} items={checklist} caseClosed={c.status === "closed"} />
       <CaseDocumentRequests reference={c.reference} requests={document_requests}
                             caseClosed={c.status === "closed"} />
     </Shell>

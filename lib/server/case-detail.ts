@@ -1,7 +1,8 @@
 // The CA case-detail response (port of app._ca_case_detail): case, profile,
-// statement uploads, the stored review and document requests.
+// statement uploads, the stored review, document requests and the suggested checklist.
 
 import { profileView } from "./client-profile";
+import { caChecklistView } from "./checklist";
 import type { Db } from "./db";
 import { reviewView, type ReviewCase } from "./review";
 import { caseUploads, documentRequestViews } from "./views";
@@ -14,5 +15,6 @@ export async function caseDetail(db: Db, firmId: string, c: ReviewCase & { clien
     statements: await caseUploads(db, firmId, c.id),
     review: await reviewView(db, firmId, c),
     document_requests: await documentRequestViews(db, firmId, c.id, true),
+    checklist: await caChecklistView(db, firmId, c.id),
   };
 }

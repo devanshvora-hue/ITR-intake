@@ -1,6 +1,7 @@
 // Types and labels for the CA case-detail page (Stage 5.8). Shapes mirror
 // `GET /api/ca/cases/{reference}` (app.py `_ca_case_detail` and
 // case_review.py `review_view`); nothing here is invented by the frontend.
+import type { CaChecklistItem } from "./checklist";
 import type { DocumentRequest } from "./document-requests";
 import type { StatementUpload } from "./statements";
 
@@ -18,6 +19,7 @@ export type CaseProfile = {
   full_name: string | null;
   bank_name: string | null;
   account_last4: string | null;
+  income_sources: string[];
   complete: boolean;
 };
 
@@ -66,6 +68,7 @@ export type CaseDetail = {
   statements: StatementUpload[];
   review: CaseReview | null;
   document_requests: DocumentRequest[];
+  checklist: CaChecklistItem[];
 };
 
 // Upload outcomes the backend accepts for review preparation

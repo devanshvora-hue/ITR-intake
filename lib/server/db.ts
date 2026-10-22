@@ -14,8 +14,8 @@ import { getConfig } from "./config";
 
 export type Row = Record<string, unknown>;
 
-/** The schema version supabase/schema.sql records in schema_migrations. */
-export const SCHEMA_VERSION = 1;
+/** The schema version after supabase/schema.sql and every file in supabase/migrations. */
+export const SCHEMA_VERSION = 2;
 
 export interface Db {
   query<T extends Row = Row>(text: string, params?: unknown[]): Promise<T[]>;

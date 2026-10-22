@@ -4,6 +4,7 @@ import { ClientCaseForm } from "@/components/client/ClientCaseForm";
 import { ClientLogoutButton } from "@/components/client/ClientLogoutButton";
 import { ClientProfileForm } from "@/components/client/ClientProfileForm";
 import { ClientStartForm } from "@/components/client/ClientStartForm";
+import { ClientChecklist } from "@/components/client/ClientChecklist";
 import { DocumentRequests } from "@/components/client/DocumentRequests";
 import { StatementList } from "@/components/client/StatementList";
 import { StatementUploader } from "@/components/client/StatementUploader";
@@ -155,6 +156,12 @@ function SignedIn({ me }: { me: ClientMe }) {
                 <h3 className="font-medium">Uploaded statements</h3>
                 <div className="mt-3">
                   <StatementList statements={c.statements} />
+                </div>
+              </div>
+              <div>
+                <h3 className="font-medium">Documents you may need</h3>
+                <div className="mt-3">
+                  <ClientChecklist reference={c.reference} items={c.checklist} caseClosed={c.status === "closed"} />
                 </div>
               </div>
               <div>

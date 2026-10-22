@@ -12,6 +12,7 @@
 
 import { recordAudit } from "./audit";
 import { syncCaseStatus } from "./case-status";
+import { refreshChecklist } from "./checklist";
 import type { CaseRow } from "./client-auth";
 import type { Db } from "./db";
 import { Conflict } from "./errors";
@@ -157,6 +158,7 @@ export async function prepareReview(db: Db, store: FileStore, input: {
     await recordAudit(tx, { actorKind: "ca", actorId: input.actorId, firmId, caseId: caseRow.id, action: "case.review_prepared",
       details: { upload_id: upload.id, rows: rows.length } });
     await syncCaseStatus(tx, firmId, caseRow.id); // outstanding document requests keep it "documents_pending"
+    await refreshChecklist(tx, firmId, caseRow.id); // newly classified activity changes the suggestions
   });
 }
 

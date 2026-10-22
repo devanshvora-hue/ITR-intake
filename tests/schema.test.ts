@@ -3,8 +3,8 @@
 
 import { beforeEach, describe, expect, it } from "vitest";
 import type { PGlite } from "@electric-sql/pglite";
-import { DbError, type Db } from "@/lib/server/db";
-import { createTestDb, SCHEMA_SQL } from "./helpers/pglite";
+import { DbError, SCHEMA_VERSION, type Db } from "@/lib/server/db";
+import { createTestDb, MIGRATIONS_SQL, SCHEMA_SQL } from "./helpers/pglite";
 
 let db: Db;
 let pg: PGlite;
@@ -34,15 +34,19 @@ beforeEach(async () => {
 
 describe("schema", () => {
   it("records its version and refuses to run twice", async () => {
-    expect(await db.query("SELECT version, name FROM schema_migrations")).toEqual([{ version: 1, name: "initial_schema" }]);
+    expect(await db.query("SELECT version, name FROM schema_migrations ORDER BY version")).toEqual([
+      { version: 1, name: "initial_schema" }, { version: 2, name: "document_checklist" }]);
+    expect(SCHEMA_VERSION).toBe(2);
     await expect(pg.exec(SCHEMA_SQL)).rejects.toThrow(/already applied/);
+    await pg.exec("ROLLBACK"); // the failed script leaves its transaction open, as in the SQL editor
+    await expect(pg.exec(MIGRATIONS_SQL[0])).rejects.toThrow(/already applied/);
   });
 
   it("enables row level security on every table", async () => {
     const rows = await db.query<{ relname: string; relrowsecurity: boolean }>(
       `SELECT c.relname, c.relrowsecurity FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
        WHERE n.nspname = 'public' AND c.relkind = 'r'`);
-    expect(rows.length).toBe(18);
+    expect(rows.length).toBe(19);
     expect(rows.filter((r) => !r.relrowsecurity)).toEqual([]);
   });
 
