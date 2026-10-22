@@ -46,6 +46,16 @@ describe("config", () => {
     expect(() => readConfig({ ...PROD, DATABASE_URL: "" })).toThrow(/DATABASE_URL/);
   });
 
+  it("forgives quotes and a pasted name, and explains a wrong DATABASE_URL without echoing it", () => {
+    expect(readConfig({ ...PROD, DATABASE_URL: `"${BASE.DATABASE_URL}"` }).databaseUrl).toBe(BASE.DATABASE_URL);
+    expect(readConfig({ ...PROD, DATABASE_URL: `DATABASE_URL=${BASE.DATABASE_URL}` }).databaseUrl).toBe(BASE.DATABASE_URL);
+    expect(() => readConfig({ ...PROD, DATABASE_URL: "https://secretproject.supabase.co" })).toThrow(/web address/);
+    expect(() => readConfig({ ...PROD, DATABASE_URL: "psql -h host secret" })).toThrow(/psql command/);
+    let message = "";
+    try { readConfig({ ...PROD, DATABASE_URL: "https://secretproject.supabase.co" }); } catch (e) { message = String(e); }
+    expect(message).not.toContain("secretproject");
+  });
+
   it("allows a Vercel preview address automatically", () => {
     const config = readConfig({ ...PROD, VERCEL_ENV: "preview", VERCEL_URL: "itr-abc.vercel.app" });
     expect(config.allowedOrigins).toContain("https://itr-abc.vercel.app");

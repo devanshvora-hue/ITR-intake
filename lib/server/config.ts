@@ -41,8 +41,26 @@ const ADDRESS = /^[^@\s<>"]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$/;
 const HOST = /^[A-Za-z0-9.-]{1,253}$/;
 const DEV_ORIGINS = ["http://localhost:3000", "http://127.0.0.1:3000"];
 
+/**
+ * A trimmed variable. Two common pasting slips are undone: the whole value in
+ * matching quotes, and the variable's own name in front ("NAME=value").
+ */
 function value(env: Env, name: string): string {
-  return (env[name] ?? "").trim();
+  let text = (env[name] ?? "").trim();
+  if (text.startsWith(`${name}=`)) text = text.slice(name.length + 1).trim();
+  const quoted = /^(["'])(.*)\1$/s.exec(text);
+  if (quoted) text = quoted[2].trim();
+  return text;
+}
+
+/** What a malformed DATABASE_URL looks like, without revealing any of it. */
+function describeDatabaseUrl(text: string): string {
+  if (/^https?:\/\//i.test(text)) {
+    return "DATABASE_URL looks like a web address (https://...). Use the Postgres connection string from Supabase -> Connect -> Transaction pooler, which starts with postgresql://";
+  }
+  if (/^psql\b/i.test(text)) return "DATABASE_URL contains a psql command. Paste only the URI that starts with postgresql://";
+  if (/\s/.test(text)) return "DATABASE_URL contains spaces or line breaks. Paste only the URI that starts with postgresql://";
+  return "DATABASE_URL must start with postgresql:// (Supabase -> Connect -> Transaction pooler -> URI)";
 }
 
 function origin(url: string, name: string): string {
@@ -87,7 +105,7 @@ export function readConfig(env: Env): Config {
 
   const databaseUrl = value(env, "DATABASE_URL");
   if (!databaseUrl) throw new ConfigError("DATABASE_URL is required (Supabase connection string)");
-  if (!/^postgres(ql)?:\/\//.test(databaseUrl)) throw new ConfigError("DATABASE_URL must be a postgres:// URL");
+  if (!/^postgres(ql)?:\/\/\S+$/.test(databaseUrl)) throw new ConfigError(describeDatabaseUrl(databaseUrl));
 
   const supabaseUrl = value(env, "SUPABASE_URL") || null;
   const supabaseServiceRoleKey = value(env, "SUPABASE_SERVICE_ROLE_KEY") || null;
