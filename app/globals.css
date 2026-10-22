@@ -15,6 +15,44 @@
   --color-rose-wash: #f5e3df;
   --color-rose-ink: #8f3b2b;
 
+  /* Semantic tokens used by components/ui and lib/tones.ts. Each one points at
+     the colour it replaces, so today's pages render exactly as before; a later
+     theme only has to redefine these. */
+  --color-surface: #ffffff;
+  --color-accent: var(--color-teal);
+  --color-accent-strong: var(--color-teal-deep);
+  --color-accent-bg: var(--color-teal-wash);
+  --color-accent-fg: var(--color-teal-deep);
+  --color-success-bg: var(--color-teal-wash);
+  --color-success-fg: var(--color-teal-deep);
+  --color-warning-bg: var(--color-amber-wash);
+  --color-warning-fg: var(--color-amber-ink);
+  --color-danger-bg: var(--color-rose-wash);
+  --color-danger-fg: var(--color-rose-ink);
+  --color-neutral-bg: var(--color-paper-deep);
+  --color-neutral-fg: var(--color-ink-soft);
+  --color-muted-fg: var(--color-ink-faint);
+
+  /* Planned dark CA palette. Defined only; not applied to any page yet.
+     WCAG contrast (checked in tests/ui-foundations.test.ts):
+     - ca-blue is 5.0:1 on ca-midnight but 4.3:1 on ca-surface and 3.5:1 on
+       ca-indigo, so small text uses ca-blue-text (4.6:1 or better on all three).
+     - Text on a ca-blue fill uses ca-on-blue (5.0:1); white is only 3.6:1.
+     - ca-border is decorative (about 1.5:1); input and control outlines use
+       ca-border-strong (3:1 or better on ca-midnight and ca-surface). */
+  --color-ca-midnight: #101421;
+  --color-ca-indigo: #172b76;
+  --color-ca-blue: #2583ff;
+  --color-ca-blue-text: #519cff;
+  --color-ca-on-blue: #101421;
+  --color-ca-surface: #1b2335;
+  --color-ca-text: #f0f3f8;
+  --color-ca-text-soft: #a7b0c7;
+  --color-ca-success: #70d6ae;
+  --color-ca-warning: #ffc777;
+  --color-ca-border: #30384e;
+  --color-ca-border-strong: #646f8a;
+
   --font-sans: var(--font-plex-sans), ui-sans-serif, system-ui, sans-serif;
   --font-serif: var(--font-fraunces), ui-serif, Georgia, serif;
   --font-mono: var(--font-plex-mono), ui-monospace, monospace;

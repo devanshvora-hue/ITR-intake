@@ -2,6 +2,8 @@
 // document_requests.request_view: CA views carry file IDs (needed to
 // download); client views never do.
 
+import { toneClasses } from "./tones";
+
 export type RequestStatus = "requested" | "received" | "waived";
 
 export type RequestFile = {
@@ -35,11 +37,11 @@ export const REQUEST_STATUS_LABELS: Record<string, string> = {
   waived: "Waived",
 };
 
-export const REQUEST_STATUS_TONES: Record<string, string> = {
-  requested: "bg-amber-wash text-amber-ink",
-  received: "bg-teal-wash text-teal-deep",
-  waived: "bg-paper-deep text-ink-soft",
-};
+export const REQUEST_STATUS_TONES: Record<string, string> = toneClasses<RequestStatus>({
+  requested: "warning",
+  received: "success",
+  waived: "neutral",
+});
 
 // Safe messages for the server's fixed error codes.
 export const DOCUMENT_ERRORS: Record<string, string> = {

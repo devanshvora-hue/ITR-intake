@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
+import { Button } from "@/components/ui/Button";
 import { postJson } from "@/lib/api-client";
 import type { FirmCodeState } from "@/lib/ca-session";
 import { FormMessage } from "./Field";
@@ -14,12 +15,6 @@ const ERRORS: Record<number, string> = {
   409: "Your firm has no active code to revoke.",
   429: "Too many firm code changes. Please try again later.",
 };
-
-const buttonBase =
-  "rounded-lg px-4 py-2 text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-60";
-const primary = `${buttonBase} bg-teal text-white hover:bg-teal-deep`;
-const secondary = `${buttonBase} border border-line bg-white hover:border-ink-faint`;
-const danger = `${buttonBase} border border-rose-ink/30 bg-white text-rose-ink hover:bg-rose-wash`;
 
 function day(stamp: string | null) {
   return stamp ? stamp.slice(0, 10) : "";
@@ -89,9 +84,9 @@ export function FirmCodePanel({ initial }: { initial: FirmCodeState }) {
               </p>
               <p className="mt-1 text-xs text-ink-faint">Active since {day(active.created_at)}</p>
             </div>
-            <button type="button" onClick={copy} className={secondary}>
+            <Button type="button" onClick={copy} variant="secondary">
               {copied ? "Copied" : "Copy code"}
-            </button>
+            </Button>
           </div>
         ) : (
           <p className="text-sm text-ink-soft">
@@ -105,17 +100,17 @@ export function FirmCodePanel({ initial }: { initial: FirmCodeState }) {
               <div className="flex flex-wrap gap-3">
                 {active ? (
                   <>
-                    <button type="button" disabled={busy} onClick={() => setConfirm("rotate")} className={secondary}>
+                    <Button type="button" disabled={busy} onClick={() => setConfirm("rotate")} variant="secondary">
                       Rotate code
-                    </button>
-                    <button type="button" disabled={busy} onClick={() => setConfirm("revoke")} className={danger}>
+                    </Button>
+                    <Button type="button" disabled={busy} onClick={() => setConfirm("revoke")} variant="danger">
                       Revoke code
-                    </button>
+                    </Button>
                   </>
                 ) : (
-                  <button type="button" disabled={busy} onClick={() => run("/api/ca/firm-code")} className={primary}>
+                  <Button type="button" disabled={busy} onClick={() => run("/api/ca/firm-code")} variant="primary">
                     {busy ? "Generating…" : "Generate firm code"}
-                  </button>
+                  </Button>
                 )}
               </div>
             )}
@@ -127,12 +122,12 @@ export function FirmCodePanel({ initial }: { initial: FirmCodeState }) {
                   Existing cases are not affected.
                 </p>
                 <div className="mt-3 flex flex-wrap gap-3">
-                  <button type="button" disabled={busy} onClick={() => run("/api/ca/firm-code/rotate")} className={primary}>
+                  <Button type="button" disabled={busy} onClick={() => run("/api/ca/firm-code/rotate")} variant="primary">
                     {busy ? "Rotating…" : "Rotate now"}
-                  </button>
-                  <button type="button" disabled={busy} onClick={() => setConfirm(null)} className={secondary}>
+                  </Button>
+                  <Button type="button" disabled={busy} onClick={() => setConfirm(null)} variant="secondary">
                     Cancel
-                  </button>
+                  </Button>
                 </div>
               </div>
             )}
@@ -144,12 +139,12 @@ export function FirmCodePanel({ initial }: { initial: FirmCodeState }) {
                   not affected.
                 </p>
                 <div className="mt-3 flex flex-wrap gap-3">
-                  <button type="button" disabled={busy} onClick={() => run("/api/ca/firm-code/revoke")} className={danger}>
+                  <Button type="button" disabled={busy} onClick={() => run("/api/ca/firm-code/revoke")} variant="danger">
                     {busy ? "Revoking…" : "Revoke now"}
-                  </button>
-                  <button type="button" disabled={busy} onClick={() => setConfirm(null)} className={secondary}>
+                  </Button>
+                  <Button type="button" disabled={busy} onClick={() => setConfirm(null)} variant="secondary">
                     Cancel
-                  </button>
+                  </Button>
                 </div>
               </div>
             )}

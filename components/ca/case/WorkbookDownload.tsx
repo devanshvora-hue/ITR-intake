@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { FormMessage } from "@/components/ca/Field";
+import { Button } from "@/components/ui/Button";
 
 const ERRORS: Record<number, string> = {
   404: "This case has no prepared review yet.",
@@ -58,10 +59,9 @@ export function WorkbookDownload({ reference, available, verified }: {
 
   return (
     <div className="space-y-2">
-      <button type="button" onClick={download} disabled={!available || busy}
-              className="rounded-lg border border-line bg-white px-4 py-2 text-sm font-medium transition-colors hover:border-ink-faint disabled:cursor-not-allowed disabled:opacity-60">
+      <Button type="button" variant="secondary" onClick={download} disabled={!available || busy}>
         {busy ? "Preparing workbook…" : "Download internal workbook (.xlsx)"}
-      </button>
+      </Button>
       {!available && <p className="text-xs text-ink-faint">Prepare a review first to download the workbook.</p>}
       {available && !verified && (
         <p className="text-xs text-amber-ink">The workbook is marked UNVERIFIED, like this review.</p>

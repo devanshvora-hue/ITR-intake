@@ -2,6 +2,8 @@
 // The server sends codes only (never transaction contents); these turn them
 // into messages for clients and CAs.
 
+import { toneClasses } from "./tones";
+
 export type StatementUpload = {
   id: string;
   file_type: "pdf" | "csv" | "unknown";
@@ -31,13 +33,13 @@ export const STATUS_LABELS: Record<StatementUpload["status"], string> = {
   processing_failed: "Processing failed",
 };
 
-export const STATUS_TONES: Record<StatementUpload["status"], string> = {
-  processing: "bg-paper-deep text-ink-soft",
-  extracted: "bg-teal-wash text-teal-deep",
-  manual_review_required: "bg-amber-wash text-amber-ink",
-  rejected: "bg-rose-wash text-rose-ink",
-  processing_failed: "bg-rose-wash text-rose-ink",
-};
+export const STATUS_TONES: Record<StatementUpload["status"], string> = toneClasses({
+  processing: "neutral",
+  extracted: "success",
+  manual_review_required: "warning",
+  rejected: "danger",
+  processing_failed: "danger",
+});
 
 const MESSAGES: Record<string, string> = {
   // file-level

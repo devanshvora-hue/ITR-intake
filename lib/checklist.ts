@@ -3,6 +3,8 @@
 // suggestions are not tax advice and never become document requests until the
 // CA converts them.
 
+import { toneClasses } from "./tones";
+
 export type ChecklistLevel = "required" | "conditional" | "optional";
 export type ClientResponse = "unavailable" | "not_applicable";
 export type CaChecklistStatus = "suggested" | "requested" | "dismissed";
@@ -25,11 +27,11 @@ export const LEVEL_LABELS: Record<ChecklistLevel, string> = {
   optional: "Optional",
 };
 
-export const LEVEL_TONES: Record<ChecklistLevel, string> = {
-  required: "bg-amber-wash text-amber-ink",
-  conditional: "bg-paper-deep text-ink-soft",
-  optional: "bg-paper-deep text-ink-faint",
-};
+export const LEVEL_TONES: Record<ChecklistLevel, string> = toneClasses({
+  required: "warning",
+  conditional: "neutral",
+  optional: "muted",
+});
 
 export const RESPONSE_LABELS: Record<ClientResponse, string> = {
   unavailable: "I don't have this",

@@ -1,44 +1,9 @@
-type FieldProps = {
-  id: string;
-  label: string;
-  type?: string;
-  autoComplete?: string;
-  required?: boolean;
-  hint?: string;
-  minLength?: number;
-  maxLength?: number;
-};
+// The form primitives now live in components/ui; CA and client forms keep
+// importing them from here.
+import { buttonClasses } from "@/components/ui/Button";
 
-export function Field({ id, label, type = "text", autoComplete, required, hint, minLength, maxLength }: FieldProps) {
-  return (
-    <div>
-      <label htmlFor={id} className="block text-sm font-medium">
-        {label}
-        {!required && <span className="ml-1 font-normal text-ink-faint">(optional)</span>}
-      </label>
-      <input
-        id={id}
-        name={id}
-        type={type}
-        autoComplete={autoComplete}
-        required={required}
-        minLength={minLength}
-        maxLength={maxLength}
-        className="mt-1.5 w-full rounded-lg border border-line bg-white px-3 py-2 text-sm focus:border-teal focus:outline-none"
-      />
-      {hint && <p className="mt-1 text-xs text-ink-faint">{hint}</p>}
-    </div>
-  );
-}
+export { Field } from "@/components/ui/Field";
+export { FormMessage } from "@/components/ui/FormMessage";
 
-export function FormMessage({ tone, children }: { tone: "error" | "info"; children: React.ReactNode }) {
-  const cls = tone === "error" ? "bg-rose-wash text-rose-ink" : "bg-teal-wash text-teal-deep";
-  return (
-    <p role={tone === "error" ? "alert" : "status"} className={`rounded-lg px-3 py-2 text-sm ${cls}`}>
-      {children}
-    </p>
-  );
-}
-
-export const primaryButton =
-  "w-full rounded-lg bg-teal px-5 py-2.5 text-sm font-medium text-white transition-colors hover:bg-teal-deep disabled:cursor-not-allowed disabled:opacity-60";
+/** The full-width primary form button (and the link styled like it). */
+export const primaryButton = `${buttonClasses({ variant: "primary", size: "lg" })} w-full`;

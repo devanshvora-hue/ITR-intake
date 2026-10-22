@@ -2,6 +2,8 @@
 // case_review.readiness_view. These are checklist facts from stored data,
 // never a judgement that a case is tax-ready or complete.
 
+import { toneClasses } from "./tones";
+
 export type CaseReadiness = {
   statement: "none" | "not_prepared" | "unverified" | "verified";
   unverified_reasons: string[];
@@ -23,12 +25,12 @@ export const STATEMENT_LABELS: Record<CaseReadiness["statement"], string> = {
   verified: "Review verified",
 };
 
-export const STATEMENT_TONES: Record<CaseReadiness["statement"], string> = {
-  none: "bg-paper-deep text-ink-soft",
-  not_prepared: "bg-paper-deep text-ink-soft",
-  unverified: "bg-amber-wash text-amber-ink",
-  verified: "bg-teal-wash text-teal-deep",
-};
+export const STATEMENT_TONES: Record<CaseReadiness["statement"], string> = toneClasses({
+  none: "neutral",
+  not_prepared: "neutral",
+  unverified: "warning",
+  verified: "success",
+});
 
 // Flagged: the statement review is unverified, or a required document is
 // still outstanding. Closed cases are never flagged.
