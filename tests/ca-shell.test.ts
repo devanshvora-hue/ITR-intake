@@ -1,8 +1,8 @@
-// Stage 2: the dark CA shell, its navigation and brand mark, the loading, error
-// and not-found boundaries, the light frame kept by the client portal, and the
+// Stage 2: the dark CA shell, its navigation and brand mark, the error and
+// not-found boundaries (and no loading boundary that would break redirects), the light frame kept by the client portal, and the
 // contrast of the scoped dark theme. Server-rendered; next/navigation is stubbed.
 
-import { readdirSync, readFileSync, statSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { createElement, type FunctionComponent, type ReactNode } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
@@ -20,7 +20,6 @@ const { CaShell } = await import("@/components/ca/CaShell");
 const { CA_NAV_LINKS, isCurrent } = await import("@/components/ca/CaNav");
 const { BrandMark } = await import("@/components/BrandMark");
 const { default: CaError } = await import("@/app/ca/error");
-const { default: CaLoading } = await import("@/app/ca/loading");
 const { default: NotFound } = await import("@/app/not-found");
 const { default: ClientLayout } = await import("@/app/client/layout");
 const { default: CaLayout } = await import("@/app/ca/layout");
@@ -100,11 +99,13 @@ describe("boundaries", () => {
     expect(html(createElement(CaError, { error: "boom", retry: () => {} }))).not.toContain("Reference:");
   });
 
-  it("announces loading and only pulses when motion is allowed", () => {
-    const markup = html(createElement(CaLoading));
-    expect(markup).toMatch(/^<div role="status" aria-live="polite"/);
-    expect(markup).toContain('<span class="sr-only">Loading…</span>');
-    expect(markup).not.toMatch(/(?<!motion-safe:)animate-pulse/);
+  it("has no loading boundary above pages that redirect signed-out visitors", () => {
+    // A loading.js makes these pages stream, so redirect("/ca/login") arrives inside a 200 page instead of as a
+    // 307 response (seen in production with Stage 2). The dashboard and case pages redirect from the server.
+    for (const dir of ["app", "app/ca", "app/ca/cases", "app/ca/cases/[reference]"]) {
+      expect(existsSync(join(dir, "loading.tsx")), `${dir}/loading.tsx`).toBe(false);
+      expect(existsSync(join(dir, "loading.js")), `${dir}/loading.js`).toBe(false);
+    }
   });
 
   it("offers the three starting points on the not-found page, in the light frame", () => {
