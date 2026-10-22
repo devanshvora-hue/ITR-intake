@@ -20,4 +20,6 @@ export const limits = {
   CLIENT_CASES_PER_CLIENT: 20,
   CLIENT_PROFILE_UPDATES_PER_CLIENT: 30,
   CLIENT_UPLOADS_PER_CLIENT: 20,
+  CASE_REVIEWS_PER_FIRM: 60, // review preparations (re-read a stored file)
+  WORKBOOKS_PER_FIRM: 120,
 };
