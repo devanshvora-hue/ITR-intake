@@ -18,6 +18,13 @@ venv/
 # Secrets and local configuration
 .streamlit/secrets.toml
 
+# Local runtime data: SQLite database, private file storage, generated workbooks
+backend/var/
+
+# Local-only tools: live Gemini connection check and editor preview config
+/test_gemini.py
+/.claude/launch.json
+
 # Node / Next.js
 node_modules/
 .next/

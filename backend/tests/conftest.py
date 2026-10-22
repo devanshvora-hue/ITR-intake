@@ -17,6 +17,25 @@ from itr_intake import (
 from itr_intake.text import detect_mode, extract_counterparty
 
 
+def var_dir_state() -> dict:
+    """Name -> (size, mtime) for everything in backend/var (the real local
+    database directory). Tests must never change it."""
+    from itr_intake_server.db import VAR_DIR
+
+    if not VAR_DIR.exists():
+        return {}
+    return {p.name: (p.stat().st_size, p.stat().st_mtime_ns) for p in VAR_DIR.iterdir()}
+
+
+@pytest.fixture(scope="session", autouse=True)
+def real_database_is_never_touched():
+    """Fails the run if any test created, modified or deleted files in
+    backend/var. Tests must use temporary databases only."""
+    before = var_dir_state()
+    yield
+    assert var_dir_state() == before, "a test touched backend/var; use a temporary database"
+
+
 @pytest.fixture
 def profile() -> ClientProfile:
     return ClientProfile(

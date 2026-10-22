@@ -1,123 +1,146 @@
 import type { Metadata } from "next";
-import { demoCases, type IntakeStatus, type ReviewStatus } from "@/lib/demo-cases";
+import Link from "next/link";
+import { redirect } from "next/navigation";
+import { CaStatementsTable } from "@/components/ca/CaStatementsTable";
+import { FirmCodePanel } from "@/components/ca/FirmCodePanel";
+import { LogoutButton } from "@/components/ca/LogoutButton";
+import { getCaSession } from "@/lib/ca-session";
+import { needsAttention, nextAction, STATEMENT_LABELS, STATEMENT_TONES } from "@/lib/case-readiness";
+import { CASE_STATUS_LABELS as STATUS_LABELS } from "@/lib/case-status";
 
 export const metadata: Metadata = { title: "CA dashboard · ITR Intake" };
+// Checked on every request: the API verifies the session (idle and absolute
+// expiry) and returns data for the signed-in CA's own firm only.
+export const dynamic = "force-dynamic";
 
-const intakeTone: Record<IntakeStatus, string> = {
-  "Awaiting statement": "bg-rose-wash text-rose-ink",
-  "Clarification in progress": "bg-amber-wash text-amber-ink",
-  "Documents pending": "bg-amber-wash text-amber-ink",
-  "Intake complete": "bg-teal-wash text-teal-deep",
-};
+export default async function CaDashboard() {
+  const session = await getCaSession({ withCases: true, withFirmCode: true, withStatements: true });
+  if (session.state === "signed_out") redirect("/ca/login");
+  if (session.state === "unavailable") {
+    return (
+      <div className="mx-auto max-w-2xl px-4 py-16 sm:px-6">
+        <h1 className="font-serif text-3xl font-medium tracking-tight">CA dashboard</h1>
+        <p className="mt-4 rounded-lg bg-rose-wash px-4 py-3 text-sm text-rose-ink">
+          The ITR Intake server is not reachable, so no dashboard data can be shown. Start it, then reload.
+        </p>
+      </div>
+    );
+  }
 
-const reviewTone: Record<ReviewStatus, string> = {
-  "Not started": "bg-paper-deep text-ink-soft",
-  "In review": "bg-teal-wash text-teal-deep",
-  "Queries raised": "bg-rose-wash text-rose-ink",
-  Reviewed: "bg-ink text-paper",
-};
-
-function Chip({ className, children }: { className: string; children: React.ReactNode }) {
-  return (
-    <span
-      className={`inline-block whitespace-nowrap rounded-full px-2.5 py-0.5 text-xs font-medium ${className}`}
-    >
-      {children}
-    </span>
-  );
-}
-
-export default function CaDashboard() {
-  const inIntake = demoCases.filter((c) => c.intakeStatus !== "Intake complete").length;
-  const pendingDocs = demoCases.reduce((sum, c) => sum + c.pendingDocuments, 0);
-  const readyForReview = demoCases.filter(
-    (c) => c.intakeStatus === "Intake complete" && c.reviewStatus !== "Reviewed",
-  ).length;
-
-  const stats = [
-    { label: "Total cases", value: demoCases.length, note: "Demo set" },
-    { label: "Intake in progress", value: inIntake, note: "Client still responding" },
-    { label: "Documents outstanding", value: pendingDocs, note: "Across all cases" },
-    { label: "Ready for CA review", value: readyForReview, note: "Intake complete" },
-  ];
-
+  const { me, cases, firmCode, statements } = session;
   return (
     <div className="mx-auto max-w-6xl px-4 py-10 sm:px-6 sm:py-14">
       <header className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <p className="font-mono text-xs uppercase tracking-[0.18em] text-teal">CA dashboard</p>
-          <h1 className="mt-3 font-serif text-3xl font-medium tracking-tight sm:text-4xl">
-            Intake overview
-          </h1>
+          <h1 className="mt-3 font-serif text-3xl font-medium tracking-tight sm:text-4xl">{me.firm.name}</h1>
+          <p className="mt-2 text-sm text-ink-soft">
+            Signed in as <span className="font-medium text-ink">{me.user.full_name}</span> ({me.user.email}) ·{" "}
+            {me.user.role === "owner" ? "Firm owner" : "Member"}
+          </p>
         </div>
-        <p className="rounded-lg border border-dashed border-ink-faint/50 bg-paper-deep px-3 py-2 text-xs text-ink-soft">
-          Showing <strong className="font-medium text-ink">synthetic demo cases</strong>. Case
-          details and workbooks open in a later stage.
-        </p>
+        <LogoutButton />
       </header>
 
       <section aria-label="Summary" className="mt-8 grid grid-cols-2 gap-4 lg:grid-cols-4">
-        {stats.map((s) => (
+        {[
+          { label: "Cases", value: cases.length },
+          { label: "Open", value: cases.filter((c) => c.status !== "closed").length },
+          { label: "Need CA review", value: cases.filter((c) => c.status === "ca_review_required").length },
+          { label: "Need attention", value: cases.filter((c) => needsAttention(c.status, c.readiness)).length },
+        ].map((s) => (
           <div key={s.label} className="rounded-xl border border-line bg-white p-5">
             <p className="text-sm text-ink-soft">{s.label}</p>
             <p className="mt-2 font-serif text-3xl font-medium tabular-nums">{s.value}</p>
-            <p className="mt-1 text-xs text-ink-faint">{s.note}</p>
           </div>
         ))}
       </section>
 
-      <section
-        aria-labelledby="cases"
-        className="mt-10 overflow-hidden rounded-2xl border border-line bg-white"
-      >
-        <div className="flex flex-wrap items-baseline justify-between gap-2 border-b border-line px-5 py-4">
-          <h2 id="cases" className="font-serif text-lg font-medium">
-            Cases
-          </h2>
-          <span className="font-mono text-[11px] uppercase tracking-wide text-ink-faint">
-            Demo data · not real clients
-          </span>
+      {firmCode && <FirmCodePanel initial={firmCode} />}
+
+      <section aria-labelledby="cases" className="mt-10 overflow-hidden rounded-2xl border border-line bg-white">
+        <div className="border-b border-line px-5 py-4">
+          <h2 id="cases" className="font-serif text-lg font-medium">Client cases</h2>
+          <p className="mt-1 text-xs text-ink-faint">
+            Highlighted cases have an unverified statement review or an outstanding required document. These are
+            checklist items from stored data, not a judgement that a return is ready to file.
+          </p>
         </div>
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[720px] text-left text-sm">
-            <thead className="bg-paper text-xs uppercase tracking-wide text-ink-faint">
-              <tr>
-                <th scope="col" className="px-5 py-3 font-medium">Client reference</th>
-                <th scope="col" className="px-5 py-3 font-medium">Financial year</th>
-                <th scope="col" className="px-5 py-3 font-medium">Intake status</th>
-                <th scope="col" className="px-5 py-3 text-right font-medium">Pending documents</th>
-                <th scope="col" className="px-5 py-3 font-medium">Review status</th>
-                <th scope="col" className="px-5 py-3 font-medium">Last updated</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-line">
-              {demoCases.map((c) => (
-                <tr key={c.ref} className="hover:bg-paper/60">
-                  <td className="px-5 py-3.5">
-                    <span className="font-mono text-[13px] font-medium">{c.ref}</span>
-                    <span className="block text-xs text-ink-faint">{c.clientLabel}</span>
-                  </td>
-                  <td className="px-5 py-3.5 text-ink-soft">{c.financialYear}</td>
-                  <td className="px-5 py-3.5">
-                    <Chip className={intakeTone[c.intakeStatus]}>{c.intakeStatus}</Chip>
-                  </td>
-                  <td className="px-5 py-3.5 text-right font-mono tabular-nums">
-                    {c.pendingDocuments === 0 ? (
-                      <span className="text-ink-faint">—</span>
-                    ) : (
-                      c.pendingDocuments
-                    )}
-                  </td>
-                  <td className="px-5 py-3.5">
-                    <Chip className={reviewTone[c.reviewStatus]}>{c.reviewStatus}</Chip>
-                  </td>
-                  <td className="px-5 py-3.5 text-ink-soft">{c.updated}</td>
+        {cases.length === 0 ? (
+          <div className="px-5 py-12 text-center">
+            <p className="font-medium">No client cases yet.</p>
+            <p className="mx-auto mt-2 max-w-md text-sm text-ink-soft">
+              {firmCode?.active
+                ? `Share your firm code (${firmCode.active.display}) with clients. When they start an intake at the client portal, their cases appear here.`
+                : "Generate a firm code above and share it with clients. When they start an intake at the client portal, their cases appear here."}
+            </p>
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[880px] text-left text-sm">
+              <thead className="bg-paper text-xs uppercase tracking-wide text-ink-faint">
+                <tr>
+                  <th scope="col" className="px-5 py-3 font-medium">Reference</th>
+                  <th scope="col" className="px-5 py-3 font-medium">Client</th>
+                  <th scope="col" className="px-5 py-3 font-medium">Financial year</th>
+                  <th scope="col" className="px-5 py-3 font-medium">Status</th>
+                  <th scope="col" className="px-5 py-3 font-medium">Statement</th>
+                  <th scope="col" className="px-5 py-3 font-medium">Required documents</th>
+                  <th scope="col" className="px-5 py-3 font-medium">Next step</th>
+                  <th scope="col" className="px-5 py-3 font-medium">Last updated</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody className="divide-y divide-line">
+                {cases.map((c) => {
+                  const r = c.readiness;
+                  const flagged = needsAttention(c.status, r);
+                  return (
+                  <tr key={c.reference} className={flagged ? "bg-amber-wash/40" : undefined}>
+                    <td className="px-5 py-3.5 font-mono text-[13px]">
+                      <Link href={`/ca/cases/${encodeURIComponent(c.reference)}`} className="text-teal underline">
+                        {c.reference}
+                      </Link>
+                    </td>
+                    <td className="px-5 py-3.5">
+                      <span className="font-medium">{c.profile.full_name ?? c.client_first_name}</span>
+                      <span className="block text-xs text-ink-faint">{c.client_email}</span>
+                    </td>
+                    <td className="px-5 py-3.5 text-ink-soft">{c.financial_year}</td>
+                    <td className="px-5 py-3.5">{STATUS_LABELS[c.status] ?? c.status}</td>
+                    <td className="px-5 py-3.5">
+                      <span className={`whitespace-nowrap rounded-full px-2.5 py-0.5 text-xs font-medium ${STATEMENT_TONES[r.statement]}`}>
+                        {STATEMENT_LABELS[r.statement]}
+                      </span>
+                    </td>
+                    <td className="px-5 py-3.5 text-xs">
+                      {r.documents.total_requests === 0 ? (
+                        <span className="text-ink-faint">None requested</span>
+                      ) : (
+                        <span className="whitespace-nowrap">
+                          <span className={r.documents.required_outstanding > 0 ? "font-medium text-amber-ink" : ""}>
+                            {r.documents.required_outstanding} outstanding
+                          </span>
+                          {" · "}{r.documents.required_received} received · {r.documents.required_waived} waived
+                        </span>
+                      )}
+                    </td>
+                    <td className="px-5 py-3.5">
+                      <Link href={`/ca/cases/${encodeURIComponent(c.reference)}`}
+                            className={flagged ? "font-medium text-amber-ink underline" : "text-teal underline"}>
+                        {nextAction(c.status, r)}
+                      </Link>
+                    </td>
+                    <td className="px-5 py-3.5 text-ink-soft">{c.updated_at.slice(0, 10)}</td>
+                  </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
       </section>
+
+      <CaStatementsTable statements={statements} />
     </div>
   );
 }
