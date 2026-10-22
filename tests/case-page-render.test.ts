@@ -15,6 +15,8 @@ import { POST as uploadRoute } from "@/app/api/client/cases/[reference]/statemen
 import { POST as start } from "@/app/api/client/start/route";
 import { CaseItrSummary } from "@/components/ca/case/CaseItrSummary";
 import { CaseReviewPanel } from "@/components/ca/case/CaseReviewPanel";
+import { CaseTaxReconciliation } from "@/components/ca/case/CaseTaxReconciliation";
+import { POST as uploadReport } from "@/app/api/ca/cases/[reference]/tax-reports/route";
 import { formatInr } from "@/lib/money";
 import { financialYearOptions } from "@/lib/server/client-auth";
 import { MemoryStore, setFileStoreForTests } from "@/lib/server/storage";
@@ -81,5 +83,21 @@ describe("CA case review rendering", () => {
     expect(summary).toContain("Points to verify");
     expect(summary).toContain("Large unexplained credits");
     expect(summary).toContain("Download");
+
+    // The AIS / 26AS section, from a real upload.
+    const ais = new TextEncoder().encode([
+      "Information Category,Information Source,Date of Payment/Credit,Amount Paid/Credited",
+      "Salary (Section 192),DEMO SYSTEMS PVT LTD,02-04-2025,\"85,000.00\"",
+      "Rent received,SYNTH TENANT,15-04-2025,\"25,000.00\"",
+    ].join("\n"));
+    expect((await ca.call(uploadReport, { method: "POST", path: "/api/x?kind=ais", params: { reference }, rawBody: ais,
+      headers: { "content-type": "text/csv", "x-upload-filename": "ais.csv" } })).status).toBe(201);
+    const { tax_reconciliation: view } = await (await ca.get(detailRoute, { params: { reference } })).json();
+    const tax = renderToStaticMarkup(createElement(CaseTaxReconciliation, { reference, view, caseClosed: false }));
+    expect(tax).toContain("AIS / TIS / Form 26AS reconciliation");
+    expect(tax).toContain("1 to resolve");
+    expect(tax).toContain("Not in bank statement");
+    expect(tax).toContain("₹25,000.00");
+    expect(tax).toContain("Upload and reconcile");
   });
 });

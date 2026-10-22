@@ -76,7 +76,7 @@ export function keyFigures(rows: SummaryRow[]): KeyFigure[] {
 
 /** Review flags (specification G). Each is a prompt for CA verification, never a conclusion. */
 export function reviewFlags(rows: SummaryRow[], context: { financialYear: string | null; declaredSources: string[];
-  reportsProvided?: boolean }): ReviewFlag[] {
+  reportsProvided?: boolean; taxReportOpen?: number; taxReportBankOnly?: number }): ReviewFlag[] {
   const flags: ReviewFlag[] = [];
   const add = (code: string, title: string, detail: string, members: SummaryRow[], amount: bigint | null = null) =>
     flags.push({ code, title, detail, amount: amount === null ? null : formatPaise(amount),
@@ -172,6 +172,13 @@ export function reviewFlags(rows: SummaryRow[], context: { financialYear: string
   if (family.length) {
     add("possible_clubbing", "Transfers to family members",
       "Check whether transfers to a spouse, minor child or daughter-in-law funded investments or deposits in their names (possible clubbing, s.64).", family, sum(family, "debit"));
+  }
+  if (context.reportsProvided && ((context.taxReportOpen ?? 0) > 0 || (context.taxReportBankOnly ?? 0) > 0)) {
+    const open = context.taxReportOpen ?? 0, bankOnly = context.taxReportBankOnly ?? 0;
+    add("tax_report_differences", "AIS / TIS / Form 26AS differences",
+      `${open} report entr${open === 1 ? "y is" : "ies are"} not yet reconciled with the bank statement`
+      + `${bankOnly ? `, and ${bankOnly} income credit${bankOnly === 1 ? "" : "s"} in the bank statement ${bankOnly === 1 ? "does" : "do"} not appear in the reports` : ""}. `
+      + "Resolve or explain each difference before relying on the figures.", []);
   }
   if (!context.reportsProvided) {
     add("tax_reports_not_provided", "AIS / TIS / Form 26AS not provided",

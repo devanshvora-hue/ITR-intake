@@ -5,6 +5,7 @@ import type { CaseReadiness } from "./case-readiness";
 import type { CaChecklistItem } from "./checklist";
 import type { DocumentRequest } from "./document-requests";
 import type { IntakeProgress } from "./intake";
+import type { TaxReconciliationView } from "./tax-reconciliation";
 import type { StatementUpload } from "./statements";
 
 export type CaseInfo = {
@@ -50,6 +51,8 @@ export type ReviewRow = {
   /** What the rules said; `category` is the one in force (the CA's when decided). */
   classifier_category: string | null;
   decision: { decision: "confirmed" | "changed"; note: string | null; decided_at: string } | null;
+  /** An earlier CA decision for this row number that no longer matches the row as now read (not applied). */
+  stale_decision: { category: string; decided_at: string } | null;
 };
 
 export type Reconciliation =
@@ -92,6 +95,7 @@ export type CaseDetail = {
   review: CaseReview | null;
   document_requests: DocumentRequest[];
   checklist: CaChecklistItem[];
+  tax_reconciliation: TaxReconciliationView;
 };
 
 // Upload outcomes the backend accepts for review preparation

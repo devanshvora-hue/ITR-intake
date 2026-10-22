@@ -358,6 +358,33 @@ function weakNameHints(t: Transaction, p: ClientProfile): string {
   return hints.length ? ` Weak name resemblance to ${hints.join("; ")}, not used for classification.` : "";
 }
 
+// --- rules 1-2 by wording ----------------------------------------------------------------------------------------
+// When the client's accounts or family are not on file, the narration itself may say "self transfer" or "from
+// father". That states a relationship the bank cannot verify, so it is provisional (confirm). The wording must be
+// explicit: a narration that only says "TRANSFER" is not a self or family transfer, and "own account" next to a
+// name that merely resembles the client's is left for review.
+
+const SELF_WORDING = [String.raw`\bSELF (TRANSFER|TRF|TRANSFR|A ?C|ACCOUNT|ACCT)\b`, String.raw`\b(TO|FROM) SELF\b`,
+  String.raw`\bOWN (A ?C|ACCOUNT|ACCT|ACCOUNTS)\b`, String.raw`\bTRANSFER TO OWN\b`, String.raw`\bBETWEEN (MY )?OWN\b`];
+const RELATIVE = "(FATHER|MOTHER|DAD|DADDY|MOM|MUMMY|MAMMI|PAPA|PAPPA|WIFE|HUSBAND|SPOUSE|SON|DAUGHTER|BROTHER|SISTER|BHAI|DIDI)";
+const FAMILY_WORDING = [String.raw`\bFAMILY (TRANSFER|TRF|TRANSFR)\b`, String.raw`\b(TRANSFER|TRF) (FROM|TO) FAMILY\b`,
+  String.raw`\b(FROM|TO) (MY )?${RELATIVE}\b`, String.raw`\bFOR (MY )?${RELATIVE}\b`];
+
+function matchTransferWording(t: Transaction, p: ClientProfile): Result | null {
+  const text = normalise(t.narration);
+  // A name that only resembles the client's (e.g. MEHTANI for MEHTA) contradicts "own account": not established.
+  const contradicted = matchName(p.name, t.narration, NAME_SIMILARITY_THRESHOLD)?.strength === "weak";
+  if (!contradicted && SELF_WORDING.some((pat) => re(pat).test(text))) {
+    return result("Self Transfer", "medium", "Needs confirmation", "self.wording",
+      "Narration describes a transfer between the client's own accounts; confirm the other account belongs to the client.");
+  }
+  if (FAMILY_WORDING.some((pat) => re(pat).test(text))) {
+    return result("Family Transfer", "medium", "Needs confirmation", "family.wording",
+      "Narration describes a transfer to or from a family member; confirm who it is (family members are not on file).");
+  }
+  return null;
+}
+
 // --- rules 3-5 ------------------------------------------------------------------------------------------------
 
 function applyKeywordRules(rules: KeywordRule[], t: Transaction): Result | null {
@@ -445,7 +472,7 @@ function findRecurring(candidates: Transaction[]): Map<number, string> {
 // --- orchestration ------------------------------------------------------------------------------------------------
 
 function classifyOne(t: Transaction, p: ClientProfile): Result | null {
-  return matchSelf(t, p) ?? matchFamily(t, p) ?? applyKeywordRules(BANK_RULES, t) ?? matchProfileSources(t, p)
+  return matchSelf(t, p) ?? matchFamily(t, p) ?? matchTransferWording(t, p) ?? applyKeywordRules(BANK_RULES, t) ?? matchProfileSources(t, p)
     ?? applyKeywordRules(SOURCE_RULES, t) ?? matchClientRules(t, p);
 }
 

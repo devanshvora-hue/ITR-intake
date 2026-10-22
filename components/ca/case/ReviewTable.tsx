@@ -149,6 +149,12 @@ export function ReviewTable({ reference, review, caseClosed }: { reference: stri
         {r.decision?.decision === "changed" && (
           <span className="block text-xs text-ink-faint">Rules said: {r.classifier_category}</span>
         )}
+        {r.stale_decision && (
+          <span className="mt-1 block rounded bg-amber-wash px-2 py-1 text-xs text-amber-ink">
+            Your earlier decision ({r.stale_decision.category}) no longer matches this row, because it now reads
+            differently. It was not applied; decide again.
+          </span>
+        )}
         <span className="mt-0.5 block text-xs text-ink-soft">
           {r.decision ? (r.decision.note ? `CA note: ${r.decision.note}` : "Decided by CA") : open ? reason : firstSentence(reason)}
           {!r.decision && reason !== firstSentence(reason) && (

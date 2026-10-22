@@ -37,8 +37,8 @@ describe("schema", () => {
     expect(await db.query("SELECT version, name FROM schema_migrations ORDER BY version")).toEqual([
       { version: 1, name: "initial_schema" }, { version: 2, name: "document_checklist" },
       { version: 3, name: "client_resume_codes" }, { version: 4, name: "statement_row_source_page" },
-      { version: 5, name: "classification_corrections" }]);
-    expect(SCHEMA_VERSION).toBe(5);
+      { version: 5, name: "classification_corrections" }, { version: 6, name: "tax_reports" }]);
+    expect(SCHEMA_VERSION).toBe(6);
     await expect(pg.exec(SCHEMA_SQL)).rejects.toThrow(/already applied/);
     await pg.exec("ROLLBACK"); // the failed script leaves its transaction open, as in the SQL editor
     await expect(pg.exec(MIGRATIONS_SQL[0])).rejects.toThrow(/already applied/);
@@ -48,7 +48,7 @@ describe("schema", () => {
     const rows = await db.query<{ relname: string; relrowsecurity: boolean }>(
       `SELECT c.relname, c.relrowsecurity FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
        WHERE n.nspname = 'public' AND c.relkind = 'r'`);
-    expect(rows.length).toBe(20);
+    expect(rows.length).toBe(22);
     expect(rows.filter((r) => !r.relrowsecurity)).toEqual([]);
   });
 

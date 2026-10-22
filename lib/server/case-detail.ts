@@ -6,7 +6,7 @@ import { caChecklistView } from "./checklist";
 import type { Db } from "./db";
 import { intakeProgress } from "./intake";
 import { readinessView } from "./readiness";
-import { reviewView, type ReviewCase } from "./review";
+import { caseTaxReconciliation, reviewView, type ReviewCase } from "./review";
 import { caseUploads, documentRequestViews } from "./views";
 
 export async function caseDetail(db: Db, firmId: string,
@@ -22,5 +22,6 @@ export async function caseDetail(db: Db, firmId: string,
     review: await reviewView(db, firmId, c),
     document_requests: await documentRequestViews(db, firmId, c.id, true),
     checklist: await caChecklistView(db, firmId, c.id),
+    tax_reconciliation: await caseTaxReconciliation(db, firmId, c),
   };
 }

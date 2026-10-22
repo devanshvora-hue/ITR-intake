@@ -184,10 +184,10 @@ function finish(fileType: "csv" | "pdf", rows: RawTransaction[], preRejected: Ma
 
 // --- CSV --------------------------------------------------------------------------------------------------
 
-class CsvError extends Error {}
+export class CsvError extends Error {}
 
 /** RFC 4180 records, strict like Python's csv.reader(strict=True). */
-function readCsv(text: string): string[][] {
+export function readCsv(text: string): string[][] {
   const records: string[][] = [];
   let record: string[] = [];
   let field = "";

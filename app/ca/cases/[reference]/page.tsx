@@ -3,6 +3,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { CaseChecklist } from "@/components/ca/case/CaseChecklist";
 import { CaseItrSummary } from "@/components/ca/case/CaseItrSummary";
+import { CaseTaxReconciliation } from "@/components/ca/case/CaseTaxReconciliation";
 import { CaseDocumentRequests } from "@/components/ca/case/CaseDocumentRequests";
 import { CaseReviewPanel } from "@/components/ca/case/CaseReviewPanel";
 import { CaseStatements } from "@/components/ca/case/CaseStatements";
@@ -167,6 +168,7 @@ export default async function CaCasePage({ params }: { params: Promise<{ referen
       <CaseChecklist reference={c.reference} items={checklist} caseClosed={c.status === "closed"} />
       <CaseDocumentRequests reference={c.reference} requests={document_requests}
                             caseClosed={c.status === "closed"} />
+      <CaseTaxReconciliation reference={c.reference} view={result.detail.tax_reconciliation} caseClosed={c.status === "closed"} />
       <CaseItrSummary reference={c.reference} review={review} />
     </Shell>
   );

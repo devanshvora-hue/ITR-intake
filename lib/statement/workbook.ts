@@ -66,6 +66,84 @@ const NOTE_FONT: Partial<ExcelJS.Font> = { italic: true, color: argb("57524A") }
 const TOTAL_BORDER: Partial<ExcelJS.Borders> = { top: { style: "thin", color: argb("1D1B18") } };
 const WRAP_TOP: Partial<ExcelJS.Alignment> = { wrapText: true, vertical: "top" };
 
+export type TaxReportSheetInput = {
+  status: string; open_count: number;
+  summary: { category: string; reported: string; taxDeducted: string; bank: string; difference: string; records: number }[];
+  records: { report_kind: string; source_row: number; category: string; description: string; party: string | null;
+    date: string | null; amount: string; tax_deducted: string | null; status: string; bank_rows: number[];
+    bank_amount: string | null; difference: string | null; review: string; note: string | null }[];
+  bank_only: { row_number: number; date: string; amount: string; category: string; narration: string }[];
+};
+
+const REPORT_KIND_LABEL: Record<string, string> = { ais: "AIS", tis: "TIS", form26as: "Form 26AS" };
+const MATCH_LABEL: Record<string, string> = {
+  matched: "Matched", matched_net_of_tax: "Matched (net of TDS)", aggregate_matched: "Matched (annual total)",
+  amount_differs: "Amount differs", date_differs: "Date differs", not_found: "Not found in bank statement",
+  not_compared: "Not compared (no corresponding bank category)", duplicate: "Duplicate of another report's entry",
+};
+const SHEET_AIS = "AIS - 26AS Reconciliation";
+
+function writeAisSheet(ws: ExcelJS.Worksheet, tax: TaxReportSheetInput) {
+  ws.getColumn(1).width = 34;
+  for (const c of [2, 3, 4]) ws.getColumn(c).width = 20;
+  ws.getColumn(5).width = 70;
+  ws.getCell("A1").value = "AIS / TIS / Form 26AS reconciliation (assistance only; not a tax determination)";
+  ws.getCell("A1").font = SECTION_FONT;
+  const status = ws.getCell("A2");
+  status.value = tax.status === "complete" ? "All report entries are matched or confirmed by the CA."
+    : `${tax.open_count} report entr${tax.open_count === 1 ? "y is" : "ies are"} not yet reconciled. Do not treat the reconciliation as complete.`;
+  status.font = tax.status === "complete" ? GREEN_FONT : RED_FONT;
+  status.fill = tax.status === "complete" ? GREEN_FILL : RED_FILL;
+  ws.mergeCells("A2:E2");
+  let row = 4;
+  header(ws, row, [["Item", 34], ["As per AIS / 26AS / TIS", 20], ["As per bank statement", 20], ["Difference", 20], ["Remarks", 70]]);
+  for (const s of tax.summary) {
+    row++;
+    const values: ExcelJS.CellValue[] = [s.category.replace(/_/g, " "), Number(s.reported), Number(s.bank), Number(s.difference),
+      `${s.records} report entr${s.records === 1 ? "y" : "ies"}; tax deducted per reports ${s.taxDeducted}. Bank figure is the total of the corresponding category.`];
+    values.forEach((v, c) => {
+      const cell = ws.getCell(row, c + 1);
+      cell.value = v;
+      if (c >= 1 && c <= 3) moneyCell(cell);
+      if (c === 4) cell.alignment = WRAP_TOP;
+    });
+  }
+  row += 2;
+  header(ws, row, [["Report / row", 34], ["Date", 20], ["Amount (₹)", 20], ["TDS (₹)", 20], ["Description", 70], ["Match", 34],
+    ["Bank rows", 14], ["Bank amount (₹)", 18], ["Difference (₹)", 18], ["CA review", 16], ["Note", 40]]);
+  for (const r of tax.records) {
+    row++;
+    const values: ExcelJS.CellValue[] = [`${REPORT_KIND_LABEL[r.report_kind] ?? r.report_kind} row ${r.source_row}`,
+      r.date ? toDate(r.date) : null, Number(r.amount), r.tax_deducted === null ? null : Number(r.tax_deducted),
+      `${r.description}${r.party ? ` — ${r.party}` : ""}`, MATCH_LABEL[r.status] ?? r.status, r.bank_rows.join(", "),
+      r.bank_amount === null ? null : Number(r.bank_amount), r.difference === null ? null : Number(r.difference), r.review, r.note ?? ""];
+    values.forEach((v, c) => {
+      const cell = ws.getCell(row, c + 1);
+      cell.value = v;
+      if (c === 1) cell.numFmt = DATE_FORMAT;
+      else if (c === 2 || c === 3 || c === 7 || c === 8) moneyCell(cell);
+      else if (c === 4) cell.alignment = WRAP_TOP;
+    });
+  }
+  if (tax.bank_only.length) {
+    row += 2;
+    ws.getCell(row, 1).value = "Income credits in the bank statement that no report shows";
+    ws.getCell(row, 1).font = SECTION_FONT;
+    row++;
+    header(ws, row, [["Bank row", 34], ["Date", 20], ["Amount (₹)", 20], ["Category", 20], ["Narration", 70]]);
+    for (const b of tax.bank_only) {
+      row++;
+      [b.row_number, toDate(b.date), Number(b.amount), b.category, b.narration].forEach((v, c) => {
+        const cell = ws.getCell(row, c + 1);
+        cell.value = v;
+        if (c === 1) cell.numFmt = DATE_FORMAT;
+        if (c === 2) moneyCell(cell);
+      });
+    }
+  }
+  ws.views = [{ state: "frozen", xSplit: 0, ySplit: 2 }];
+}
+
 export type StatementMetadata = {
   clientName: string; clientReference: string; bankName?: string | null; accountNumber?: string | null;
   financialYear?: string | null; periodStart?: string | null; periodEnd?: string | null; dataSourceNote?: string | null;
@@ -83,6 +161,8 @@ export type WorkbookInput = {
   metadata: StatementMetadata;
   /** Review flags (specification G), listed under "Notes / Assumptions – Please Review". */
   flags?: ReviewFlag[];
+  /** AIS / TIS / Form 26AS reconciliation; the sheet is written only when reports were provided. */
+  taxReports?: TaxReportSheetInput | null;
   /** Line written in Summary!A3 (the verification status), with its colours. */
   statusLine?: { text: string; verified: boolean };
 };
@@ -433,7 +513,7 @@ function writeSummary(ws: ExcelJS.Worksheet, input: WorkbookInput, last: number)
     "Recurring credits are flagged for confirmation but not assigned an income category.",
     "Debits and credits are shown gross; nothing has been netted off.",
     "Categories changed or confirmed by the CA in ITR Intake are marked 'CA changed' / 'CA confirmed' in the reason column.",
-    "AIS / Form 26AS reconciliation appears only if those reports were supplied.",
+    "The 'AIS - 26AS Reconciliation' sheet appears only if AIS / TIS / Form 26AS reports were uploaded; it is matching assistance, not a tax determination.",
   ];
   notes.forEach((note, i) => {
     row++;
@@ -471,6 +551,7 @@ export async function buildWorkbook(input: WorkbookInput): Promise<Uint8Array> {
     if (rows.length) writeCategorySheet(wb, category, rows, taken);
   }
   writeNeedsReview(wb.addWorksheet(SHEET_REVIEW), txns);
+  if (input.taxReports && input.taxReports.records.length) writeAisSheet(wb.addWorksheet(SHEET_AIS), input.taxReports);
   writeSummary(summary, { ...input, transactions: txns }, last);
   const lists = wb.addWorksheet(SHEET_LISTS, { state: "hidden" });
   CATEGORIES.forEach((name, i) => { lists.getCell(i + 1, 1).value = name; });
