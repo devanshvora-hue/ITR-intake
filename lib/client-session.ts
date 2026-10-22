@@ -1,11 +1,10 @@
 // Server-only: resolve the visitor's client session by asking the API,
 // forwarding the browser's cookies. The API remains the authority; it derives
 // the client, firm and firm code from the session, never from the browser.
-import { headers } from "next/headers";
 import type { DocumentRequest } from "./document-requests";
+import { apiGet } from "./self-api";
 import type { StatementUpload } from "./statements";
 
-const API_ORIGIN = process.env.ITR_API_ORIGIN ?? "http://127.0.0.1:8000";
 
 export type ClientProfile = {
   full_name: string | null;
@@ -42,9 +41,8 @@ export type ClientSessionState =
   | { state: "unavailable" };
 
 export async function getClientSession(): Promise<ClientSessionState> {
-  const cookie = (await headers()).get("cookie") ?? "";
   try {
-    const res = await fetch(`${API_ORIGIN}/api/client/me`, { headers: { cookie }, cache: "no-store" });
+    const res = await apiGet("/api/client/me");
     if (res.status === 401) return { state: "signed_out" };
     if (!res.ok) return { state: "unavailable" };
     return { state: "signed_in", me: (await res.json()) as ClientMe };

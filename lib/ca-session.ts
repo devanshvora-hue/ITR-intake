@@ -1,11 +1,9 @@
 // Server-only: resolve the visitor's CA session by asking the API, forwarding
 // the browser's cookies. Used by server components to protect CA pages; the
 // API remains the authority on every request.
-import { headers } from "next/headers";
 import type { CaseReadiness } from "./case-readiness";
+import { apiGet } from "./self-api";
 import type { StatementUpload } from "./statements";
-
-const API_ORIGIN = process.env.ITR_API_ORIGIN ?? "http://127.0.0.1:8000";
 
 export type CaMe = {
   user: { full_name: string; email: string; role: string };
@@ -47,35 +45,30 @@ export type CaSessionState =
   | { state: "signed_out" }
   | { state: "unavailable" };
 
-async function apiGet(path: string, cookie: string): Promise<Response> {
-  return fetch(`${API_ORIGIN}${path}`, { headers: { cookie }, cache: "no-store" });
-}
-
 export async function getCaSession({ withCases = false, withFirmCode = false, withStatements = false } = {}):
   Promise<CaSessionState> {
-  const cookie = (await headers()).get("cookie") ?? "";
   try {
-    const meRes = await apiGet("/api/ca/me", cookie);
+    const meRes = await apiGet("/api/ca/me");
     if (meRes.status === 401) return { state: "signed_out" };
     if (!meRes.ok) return { state: "unavailable" };
     const me = (await meRes.json()) as CaMe;
     let cases: CaCase[] = [];
     if (withCases) {
-      const casesRes = await apiGet("/api/ca/cases", cookie);
+      const casesRes = await apiGet("/api/ca/cases");
       if (casesRes.status === 401) return { state: "signed_out" };
       if (!casesRes.ok) return { state: "unavailable" };
       cases = ((await casesRes.json()) as { cases: CaCase[] }).cases;
     }
     let firmCode: FirmCodeState | null = null;
     if (withFirmCode) {
-      const codeRes = await apiGet("/api/ca/firm-code", cookie);
+      const codeRes = await apiGet("/api/ca/firm-code");
       if (codeRes.status === 401) return { state: "signed_out" };
       if (!codeRes.ok) return { state: "unavailable" };
       firmCode = (await codeRes.json()) as FirmCodeState;
     }
     let statements: CaStatement[] = [];
     if (withStatements) {
-      const res = await apiGet("/api/ca/statements", cookie);
+      const res = await apiGet("/api/ca/statements");
       if (res.status === 401) return { state: "signed_out" };
       if (!res.ok) return { state: "unavailable" };
       statements = ((await res.json()) as { statements: CaStatement[] }).statements;
