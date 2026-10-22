@@ -121,7 +121,7 @@ const MERCHANT_PATTERNS = [
   String.raw`\b(APOLLO PHARMACY|PHARMEASY|NETMEDS|1MG|MEDPLUS)\b`, String.raw`\b(HPCL|BPCL|IOCL|INDIAN OIL|PETROL PUMP|FUEL STATION)\b`,
 ];
 // Words in a payee name that suggest a shop or business rather than a person.
-const MERCHANT_WORDS = /\b(MART|STORES?|SHOP|GROCERS?|GROCERY|SHOPPE|SUPERMARKET|SUPER MARKET|BAZAAR|BAZAR|KIRANA|GENERAL STORES|TRADERS|TRADING|ENTERPRISES?|AGENCIES|AGENCY|FOODS?|RESTAURANT|HOTEL|CAFE|BAKERY|SWEETS|DHABA|PHARMA|PHARMACY|MEDICAL|MEDICALS|CHEMISTS?|CLINIC|HOSPITAL|DIAGNOSTICS?|LABS?|SALON|PARLOUR|BOUTIQUE|FASHIONS?|GARMENTS|ELECTRONICS|MOBILES|HARDWARE|PETROLEUM|FUELS?|SERVICES|SOLUTIONS|RETAIL|LIMITED|LTD|PVT|INDIA|ONLINE|PAYMENTS?)\b/;
+const MERCHANT_WORDS = /\b(MART|STORES?|SHOP|GROCERS?|GROCERY|COFFEE|TEA|PIZZA|BURGER|KITCHEN|EATERY|DINER|DELIVERY|BOOKS?|BOOKSTORE|STATIONERY|TRANSPORT|TRAVELS?|TAXI|CABS?|PARKING|TOLL|STREAMING|SUBSCRIPTION|SERVICE|CINEMAS?|MOVIES|THEATRE|GYM|FITNESS|SHOPPE|SUPERMARKET|SUPER MARKET|BAZAAR|BAZAR|KIRANA|GENERAL STORES|TRADERS|TRADING|ENTERPRISES?|AGENCIES|AGENCY|FOODS?|RESTAURANT|HOTEL|CAFE|BAKERY|SWEETS|DHABA|PHARMA|PHARMACY|MEDICAL|MEDICALS|CHEMISTS?|CLINIC|HOSPITAL|DIAGNOSTICS?|LABS?|SALON|PARLOUR|BOUTIQUE|FASHIONS?|GARMENTS|ELECTRONICS|MOBILES|HARDWARE|PETROLEUM|FUELS?|SERVICES|SOLUTIONS|RETAIL|LIMITED|LTD|PVT|INDIA|ONLINE|PAYMENTS?)\b/;
 
 const NOT_A_TAX_CONCLUSION = "The category reflects the instrument type only; eligibility for any deduction must be "
   + "confirmed by the CA from supporting documents.";
@@ -214,7 +214,7 @@ export const SOURCE_RULES: KeywordRule[] = [
     note: "Narration mentions rent. Confirm the property and tenant (income from house property)." },
   { name: "source.professional_receipt", category: "Business / Professional Receipts", direction: "credit",
     patterns: [String.raw`\bINVOICE\b`, String.raw`\bINV NO\b`, String.raw`\bPROFESSIONAL (FEE|FEES|CHARGES)\b`, String.raw`\bCONSULT(ANCY|ING)? (FEE|FEES|CHARGES)\b`,
-      String.raw`\bRETAINER(SHIP)?\b`],
+      String.raw`\bRETAINER(SHIP)?\b`, String.raw`\bFREELANC(E|ER|ING)\b`],
     confidence: "medium", reviewStatus: "Needs confirmation",
     note: "Narration indicates fees or an invoice. Confirm it is the client's business or professional receipt." },
   { name: "source.gift_received", category: "Gifts / Receipts from Non-relatives", direction: "credit", patterns: [String.raw`\bGIFT\b`],
@@ -492,7 +492,9 @@ function matchPaymentMode(t: Transaction): Result | null {
   if (!/^UPI\b/.test(text) && !/\bUPI\b/.test(text)) return null;
   const payee = extractCounterparty(t.narration);
   const payeeText = payee ? normalise(payee) : "";
-  if (/\bP2M\b/.test(text) || (payeeText && MERCHANT_WORDS.test(payeeText))) {
+  // One-word shop names such as BOOKSTORE, FOODHUB or QUICKMART count as merchants too.
+  const shopName = /\b[A-Z]{2,}(MART|STORE|STORES|SHOP|HUB|BAZAAR|KART|CAFE|FOODS)\b/;
+  if (/\bP2M\b/.test(text) || (payeeText && (MERCHANT_WORDS.test(payeeText) || shopName.test(payeeText)))) {
     return result("Personal Expenses", "medium", "Auto-classified", "mode.upi_merchant",
       `UPI payment to what appears to be a merchant${payee ? ` (${payee})` : ""}; treated as a personal expense.`);
   }

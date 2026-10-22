@@ -49,6 +49,17 @@ describe("UPI direction and rule priority", () => {
     expect([incomingP2P.category, incomingP2P.reviewStatus]).toEqual(["Others – Needs Review", "Needs review"]);
   });
 
+  it("recognises merchants by generic shop words and one-word shop names, but not people", () => {
+    for (const payee of ["COFFEE HOUSE", "BOOKSTORE", "FOODHUB", "STREAMING SERVICE", "LOCAL TRANSPORT", "QUICKMART"]) {
+      expect([payee, ...triple(txn(`UPI  UPI/${payee}/847003`, 315))]).toEqual([payee, "Personal Expenses", "Auto-classified", "mode.upi_merchant"]);
+    }
+    expect(triple(txn("UPI/P2A/512300001112/VIKRAM SYNTH/Dinner", 850))).toEqual(["Personal Expenses", "Needs confirmation", "mode.upi_unidentified"]);
+    const freelance = one(txn("NEFT  FREELANCE PAYMENT/DEMO CLIENT", 0, 12000));
+    expect([freelance.category, freelance.reviewStatus]).toEqual(["Business / Professional Receipts", "Needs confirmation"]);
+    // Ownership of the savings account is not established: left for review.
+    expect(one(txn("IMPS  IMPS/TRANSFER TO SAVINGS", 10000)).category).toBe("Others – Needs Review");
+  });
+
   it("lets stronger evidence win over the UPI default", () => {
     expect(triple(txn("UPI/LIC OF INDIA PREMIUM", 24150))[0]).toBe("Investments – Tax-saving");
     expect(triple(txn("UPI/NACH MUTUAL FUND SIP/DEMO AMC", 5000))[0]).toBe("Investments – Others");

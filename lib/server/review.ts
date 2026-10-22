@@ -170,8 +170,20 @@ export async function prepareReview(db: Db, store: FileStore, input: {
       [caseRow.id, firmId, caseRow.version, CLASSIFIER_VERSION, upload.id, dates[0] ?? null, dates[dates.length - 1] ?? null,
         bal.opening === null ? null : formatPaise(bal.opening), bal.closing === null ? null : formatPaise(bal.closing)]);
     if (!updated.length) throw new Conflict("stale_version");
+    // The upload record now describes this read of the stored file (the parser may have improved since upload);
+    // verification follows it, so a statement is never judged by an outdated read.
+    await tx.query(
+      `UPDATE statement_uploads SET status = $4, reasons_json = $5::text::jsonb, page_warnings_json = $6::text::jsonb,
+         rejected_rows_json = $7::text::jsonb, duplicate_rows_json = $8::text::jsonb, pages_total = $9, rows_extracted = $10,
+         rows_rejected = $11, rows_duplicate = $12, rows_summary = $13, period_start = $14::date, period_end = $15::date,
+         error_code = NULL, processed_at = now()
+       WHERE id = $1 AND case_id = $2 AND firm_id = $3`,
+      [upload.id, caseRow.id, firmId, result.status, JSON.stringify(result.reviewReasons),
+        JSON.stringify(result.pageWarnings.slice(0, 200)), JSON.stringify(result.rejected.slice(0, 200)),
+        JSON.stringify(result.duplicateRows.slice(0, 200)), result.pagesTotal, result.transactions.length, result.rejected.length,
+        result.duplicateRows.length, result.summaryRows, result.periodStart, result.periodEnd]);
     await recordAudit(tx, { actorKind: "ca", actorId: input.actorId, firmId, caseId: caseRow.id, action: "case.review_prepared",
-      details: { upload_id: upload.id, rows: rows.length } });
+      details: { upload_id: upload.id, rows: rows.length, previous_status: upload.status, status: result.status } });
     await syncCaseStatus(tx, firmId, caseRow.id); // outstanding document requests keep it "documents_pending"
     await refreshChecklist(tx, firmId, caseRow.id); // newly classified activity changes the suggestions
   });

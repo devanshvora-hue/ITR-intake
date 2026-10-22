@@ -158,6 +158,18 @@ describe("review preparation", () => {
     expect((await prepare(ca, reference, good, { csrf: false })).status).toBe(403);
   });
 
+  it("judges the statement by the current read, not the read at upload time", async () => {
+    const { ca, client, reference } = await setup();
+    const id = await upload(client, reference, CSV_OK);
+    // As if an older parser had read this file less well when it was uploaded.
+    await env.db.query("UPDATE statement_uploads SET status = 'manual_review_required', rows_extracted = 1, reasons_json = '[\"rows_rejected\"]'");
+    const { review } = await (await prepare(ca, reference, id)).json();
+    expect([review.verified, review.statement.status, review.statement.rows_extracted, review.statement.reasons])
+      .toEqual([true, "extracted", 2, []]);
+    expect(await rows("SELECT details_json FROM audit_events WHERE action = 'case.review_prepared'")).toEqual([
+      { details_json: { upload_id: id, rows: 2, previous_status: "manual_review_required", status: "extracted" } }]);
+  });
+
   it("refuses a closed case", async () => {
     const { ca, client, reference } = await setup();
     const id = await upload(client, reference, CSV_OK);
