@@ -60,30 +60,50 @@ function release(): void {
 
 type Item = { str: string; x: number; y: number; size: number; charWidth: number | null };
 
-/** Lay one page's text items out as fixed-width lines. */
-export function layoutPage(items: Item[]): string {
+/**
+ * Where one text item landed: `col` is its first character's index in the
+ * laid-out line; `x0`/`x1` are its true left and right edges in the same
+ * character units. They differ when a preceding item was wider in characters
+ * than on the page and pushed this one right.
+ */
+export type Cell = { col: number; x0: number; x1: number; str: string };
+export type LaidOutLine = { text: string; cells: Cell[] };
+export type PdfPage = { text: string; lines: LaidOutLine[] };
+
+/** Lay one page's text items out as fixed-width lines, keeping each item's true position. */
+export function layoutPageGeometry(items: Item[]): PdfPage {
   const widths = items.map((i) => i.charWidth).filter((w): w is number => w !== null && w > 0).sort((a, b) => a - b);
   const sizes = items.map((i) => i.size).sort((a, b) => a - b);
   const cw = widths[Math.floor(widths.length / 2)] ?? (sizes[Math.floor(sizes.length / 2)] ?? 10) * 0.6;
   const sorted = [...items].sort((a, b) => b.y - a.y || a.x - b.x);
-  const lines: Item[][] = [];
+  const groups: Item[][] = [];
   for (const item of sorted) {
-    const line = lines[lines.length - 1];
+    const line = groups[groups.length - 1];
     if (line && Math.abs(line[0].y - item.y) <= Math.max(1, Math.min(line[0].size, item.size) * 0.4)) line.push(item);
-    else lines.push([item]);
+    else groups.push([item]);
   }
-  return lines.map((line) => {
+  const lines = groups.map((group) => {
     let out = "";
-    for (const item of line.sort((a, b) => a.x - b.x)) {
+    const cells: Cell[] = [];
+    for (const item of group.sort((a, b) => a.x - b.x)) {
       let col = Math.max(0, Math.round(item.x / cw));
       if (col < out.length) col = out.length + (out.length && !out.endsWith(" ") ? 1 : 0);
       out = out.padEnd(col, " ") + item.str;
+      const length = [...item.str].length;
+      const width = item.charWidth !== null ? item.charWidth * length : length * cw;
+      cells.push({ col, x0: item.x / cw, x1: (item.x + width) / cw, str: item.str });
     }
-    return out.trimEnd();
-  }).join("\n");
+    return { text: out.trimEnd(), cells };
+  });
+  return { text: lines.map((l) => l.text).join("\n"), lines };
 }
 
-async function extract(data: Uint8Array): Promise<string[]> {
+/** Lay one page's text items out as fixed-width lines. */
+export function layoutPage(items: Item[]): string {
+  return layoutPageGeometry(items).text;
+}
+
+async function extract(data: Uint8Array): Promise<PdfPage[]> {
   let pdf;
   try {
     pdf = await getDocumentProxy(new Uint8Array(data), { disableFontFace: true });
@@ -97,7 +117,7 @@ async function extract(data: Uint8Array): Promise<string[]> {
       const permissions = await pdf.getPermissions();
       if (permissions && ![...permissions].includes(COPY_PERMISSION)) throw new ExtractionFailed("pdf_copy_restricted");
     }
-    const pages: string[] = [];
+    const pages: PdfPage[] = [];
     let total = 0;
     for (let n = 1; n <= pdf.numPages; n++) {
       const page = await pdf.getPage(n);
@@ -110,10 +130,10 @@ async function extract(data: Uint8Array): Promise<string[]> {
         const length = [...raw.str].length;
         items.push({ str: raw.str, x: e, y: f, size, charWidth: raw.width > 0 && length ? raw.width / length : null });
       }
-      const text = layoutPage(items);
-      total += text.length;
+      const laidOut = layoutPageGeometry(items);
+      total += laidOut.text.length;
       if (total > MAX_TEXT_CHARS) throw new ExtractionFailed("pdf_text_too_large");
-      pages.push(text);
+      pages.push(laidOut);
       page.cleanup();
     }
     return pages;
@@ -127,8 +147,8 @@ async function extract(data: Uint8Array): Promise<string[]> {
   }
 }
 
-/** Page texts of a PDF. Raises ExtractionFailed (fixed codes) or ExtractorBusy. */
-export async function extractPdfPages(data: Uint8Array): Promise<string[]> {
+/** Laid-out pages of a PDF (text plus true item positions). Raises ExtractionFailed (fixed codes) or ExtractorBusy. */
+export async function extractPdfPages(data: Uint8Array): Promise<PdfPage[]> {
   await acquire();
   let timer: ReturnType<typeof setTimeout> | undefined;
   try {

@@ -36,8 +36,8 @@ describe("schema", () => {
   it("records its version and refuses to run twice", async () => {
     expect(await db.query("SELECT version, name FROM schema_migrations ORDER BY version")).toEqual([
       { version: 1, name: "initial_schema" }, { version: 2, name: "document_checklist" },
-      { version: 3, name: "client_resume_codes" }]);
-    expect(SCHEMA_VERSION).toBe(3);
+      { version: 3, name: "client_resume_codes" }, { version: 4, name: "statement_row_source_page" }]);
+    expect(SCHEMA_VERSION).toBe(4);
     await expect(pg.exec(SCHEMA_SQL)).rejects.toThrow(/already applied/);
     await pg.exec("ROLLBACK"); // the failed script leaves its transaction open, as in the SQL editor
     await expect(pg.exec(MIGRATIONS_SQL[0])).rejects.toThrow(/already applied/);

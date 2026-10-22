@@ -101,7 +101,12 @@ export async function prepareReview(db: Db, store: FileStore, input: {
   if (result.status === REJECTED) throw new ReviewRefused("statement_not_usable");
 
   const usable = result.transactions;
-  const bal = balances(usable);
+  // The balances printed on the statement win; otherwise they are derived from the rows' own balances.
+  const derived = balances(usable);
+  const bal = {
+    opening: result.statedOpening !== null ? parseAmount(result.statedOpening, true) : derived.opening,
+    closing: result.statedClosing !== null ? parseAmount(result.statedClosing, true) : derived.closing,
+  };
   const report = validateRows(usable);
   const profile = (caseRow.profile_json ?? {}) as { full_name?: string };
   const classified = new Map(classifyStatement(report.transactions, { name: profile.full_name || caseRow.client_first_name })
@@ -110,10 +115,12 @@ export async function prepareReview(db: Db, store: FileStore, input: {
   for (const issue of report.errors) issues.set(issue.rowNumber, [...(issues.get(issue.rowNumber) ?? []), issue.code]);
 
   type Row = Record<string, unknown> & { row_number: number };
-  const rows: Row[] = result.rejected.map((r) => ({ row_number: r.row, is_valid: false, issues: r.codes }));
+  const rows: Row[] = result.rejected.map((r) => ({ row_number: r.row, is_valid: false, issues: r.codes,
+    source_page: r.page ?? null }));
   for (const r of usable) {
     const t = classified.get(r.rowNumber);
-    const raw = { raw_date: r.date, raw_narration: r.narration, raw_debit: r.debit, raw_credit: r.credit, raw_balance: r.balance };
+    const raw = { raw_date: r.date, raw_narration: r.narration, raw_debit: r.debit, raw_credit: r.credit, raw_balance: r.balance,
+      source_page: result.rowPages.get(r.rowNumber) ?? null };
     if (!t) {
       rows.push({ row_number: r.rowNumber, is_valid: false, issues: issues.get(r.rowNumber) ?? ["invalid_row"], ...raw });
       continue;
@@ -136,15 +143,17 @@ export async function prepareReview(db: Db, store: FileStore, input: {
       await tx.query(
         `INSERT INTO statement_rows (case_id, firm_id, row_number, is_valid, issues_json, flags_json, raw_date,
            raw_narration, raw_debit, raw_credit, raw_balance, txn_date, narration, debit, credit, balance, mode,
-           counterparty, category, confidence, review_status, matched_rule, classification_reason, classifier_version)
+           counterparty, category, confidence, review_status, matched_rule, classification_reason, classifier_version,
+           source_page)
          SELECT $1, $2, r.row_number, r.is_valid, COALESCE(r.issues, '[]'::jsonb), COALESCE(r.flags, '[]'::jsonb),
            r.raw_date, r.raw_narration, r.raw_debit, r.raw_credit, r.raw_balance, r.txn_date, r.narration, r.debit,
            r.credit, r.balance, r.mode, r.counterparty, r.category, r.confidence, r.review_status, r.matched_rule,
-           r.classification_reason, r.classifier_version
+           r.classification_reason, r.classifier_version, r.source_page
          FROM jsonb_to_recordset($3::text::jsonb) AS r(row_number int, is_valid boolean, issues jsonb, flags jsonb,
            raw_date text, raw_narration text, raw_debit text, raw_credit text, raw_balance text, txn_date date,
            narration text, debit numeric, credit numeric, balance numeric, mode text, counterparty text, category text,
-           confidence text, review_status text, matched_rule text, classification_reason text, classifier_version text)`,
+           confidence text, review_status text, matched_rule text, classification_reason text, classifier_version text,
+           source_page int)`,
         [caseRow.id, firmId, JSON.stringify(rows)]);
     }
     const updated = await tx.query(
@@ -169,13 +178,14 @@ type StoredRow = {
   debit: string | null; credit: string | null; balance: string | null; category: string | null; confidence: string | null;
   review_status: string | null; flags_json: string[]; classification_reason: string | null; matched_rule: string | null;
   mode: string | null; counterparty: string | null; raw_debit: string | null; raw_credit: string | null; raw_balance: string | null;
+  source_page: number | null;
 };
 
 export async function storedRows(db: Db, firmId: string, caseId: string): Promise<StoredRow[]> {
   return db.query<StoredRow>(
     `SELECT row_number, is_valid, issues_json, txn_date, narration, debit::text AS debit, credit::text AS credit,
             balance::text AS balance, category, confidence, review_status, flags_json, classification_reason,
-            matched_rule, mode, counterparty, raw_debit, raw_credit, raw_balance
+            matched_rule, mode, counterparty, raw_debit, raw_credit, raw_balance, source_page
      FROM statement_rows WHERE case_id = $1 AND firm_id = $2 ORDER BY row_number`, [caseId, firmId]);
 }
 
@@ -206,6 +216,7 @@ export async function reviewView(db: Db, firmId: string, caseRow: ReviewCase) {
       row_number: r.row_number, is_valid: r.is_valid, issues: r.issues_json, date: r.txn_date, narration: r.narration,
       debit: r.debit, credit: r.credit, balance: r.balance, category: r.category, confidence: r.confidence,
       review_status: r.review_status, flags: r.flags_json, classification_reason: r.classification_reason,
+      source_page: r.source_page,
     })),
   };
 }

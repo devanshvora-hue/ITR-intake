@@ -16,7 +16,7 @@ import { financialYearOptions } from "@/lib/server/client-auth";
 import { MemoryStore, setFileStoreForTests } from "@/lib/server/storage";
 import { onboardCa } from "./helpers/ca";
 import { Client, env, rows, setupTestServer } from "./helpers/http";
-import { goodPdf } from "./helpers/synthetic-pdf";
+import { goodPdf, tableStatement, type TableRow } from "./helpers/synthetic-pdf";
 
 setupTestServer();
 let store: MemoryStore;
@@ -109,6 +109,33 @@ describe("review preparation", () => {
     const csv = await upload(client, reference, CSV_OK);
     await prepare(ca, reference, csv);
     expect(await rows("SELECT count(*)::int AS n FROM statement_rows")).toEqual([{ n: 2 }]);
+  });
+
+  it("reconciles a multi-page table statement against its printed balances and keeps source pages", async () => {
+    const { ca, client, reference } = await setup();
+    const page = (month: string, start: number): TableRow[] => [
+      { date: `02/${month}/2025`, narration: "NEFT-SYNTH-ACME SYNTHETIC PVT LTD-SALARY", credit: "1,25,000.00",
+        balance: `${(start + 125000).toLocaleString("en-IN")}.00` },
+      { date: `05/${month}/2025`, narration: "UPI/P2M/512345678901/SYNTH GROCER/Payment", debit: "4,560.00",
+        balance: `${(start + 125000 - 4560).toLocaleString("en-IN")}.00` },
+    ];
+    const pages = [page("04", 50000), page("05", 50000 + 120440)];
+    const pdf = (closing: string) => tableStatement(pages, { headerAlign: "left", carryForward: true,
+      summary: { opening: "50,000.00", closing, period: "01/04/2025 to 31/05/2025" } });
+
+    const good = await upload(client, reference, pdf("2,90,880.00"), "s.pdf", "application/pdf");
+    const { review } = await (await prepare(ca, reference, good)).json();
+    expect([review.verified, review.reconciliation.status, review.statement.status]).toEqual([true, "passed", "extracted"]);
+    expect(review.reconciliation).toMatchObject({ opening_balance: "50000.00", stated_closing: "290880.00", difference: "0.00" });
+    expect(review.rows.map((r: { source_page: number; debit: string; credit: string }) => [r.source_page, r.debit, r.credit]))
+      .toEqual([[1, "0.00", "125000.00"], [1, "4560.00", "0.00"], [2, "0.00", "125000.00"], [2, "4560.00", "0.00"]]);
+
+    // A printed closing balance that the rows do not reach is a failed reconciliation, never verified.
+    const bad = await upload(client, reference, pdf("3,00,000.00"), "t.pdf", "application/pdf");
+    const failed = (await (await prepare(ca, reference, bad)).json()).review;
+    expect([failed.verified, failed.reconciliation.status, failed.statement.status])
+      .toEqual([false, "failed", "manual_review_required"]);
+    expect(failed.unverified_reasons).toEqual(expect.arrayContaining(["statement_needs_manual_review", "balance_check_not_passed"]));
   });
 
   it("refuses unusable statements, missing files and other cases", async () => {

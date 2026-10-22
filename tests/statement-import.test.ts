@@ -219,7 +219,10 @@ describe("PDF statements", () => {
     const ok = await pdf([gapPage("47,751.00")]);
     expect(ok.status).toBe(EXTRACTED);
     expect([ok.transactions[1].debit, ok.transactions[1].credit]).toEqual(["999.00", null]);
-    expect((await pdf([gapPage("49,749.00")])).reviewReasons).toContain("balance_chain_broken");
+    // Read as a debit by position, but the balance went up by that amount: rejected, never trusted.
+    const wrong = await pdf([gapPage("49,749.00")]);
+    expect(wrong.rejected).toEqual([{ row: 2, codes: ["direction_conflicts_with_balance"], page: 1 }]);
+    expect(wrong.status).toBe(MANUAL_REVIEW);
   });
 
   it("catches a missing row, missing balances, bad rows, stray amounts and cover pages", async () => {
@@ -265,13 +268,16 @@ function textPage(rows: Row[], debitEndCol = 70): string {
 }
 
 describe("column bands", () => {
-  it("rejects a row whose amount touches the next column's label", () => {
+  it("reads an amount that ends at the next column's label by position, checked by the balance", () => {
     const rows: Row[] = [["01/04/2025", "SYN A", "250.00", "", "9,750.00"], ["02/04/2025", "SYN B", "100.00", "", "9,650.00"]];
     const ok = parsePdfPages([textPage(rows)], FY);
     expect([ok.status, ok.transactions.map((t) => t.debit)]).toEqual([EXTRACTED, ["250.00", "100.00"]]);
+    // Right-aligned amounts ending just where "Credit" starts are still debits (they do not cross the label).
     const touching = parsePdfPages([textPage(rows, 80)], FY);
-    expect([touching.status, touching.transactions]).toEqual([MANUAL_REVIEW, []]);
-    expect(touching.rejected.every((x) => x.codes.join() === "ambiguous_columns")).toBe(true);
+    expect([touching.status, touching.transactions.map((t) => t.debit)]).toEqual([EXTRACTED, ["250.00", "100.00"]]);
+    // The same placement with a balance that went up is a contradiction, not a credit.
+    const contradicted = parsePdfPages([textPage([rows[0], ["02/04/2025", "SYN B", "100.00", "", "9,850.00"]], 80)], FY);
+    expect(contradicted.rejected).toEqual([{ row: 2, codes: ["direction_conflicts_with_balance"], page: 1 }]);
   });
 });
 

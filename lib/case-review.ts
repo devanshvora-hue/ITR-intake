@@ -40,6 +40,8 @@ export type ReviewRow = {
   review_status: string | null;
   flags: string[];
   classification_reason: string | null;
+  /** The PDF page the row was read from (null for CSV). */
+  source_page: number | null;
 };
 
 export type Reconciliation =
@@ -85,11 +87,12 @@ export const UNVERIFIED_REASONS: Record<string, string> = {
   balance_check_not_passed: "The running balance does not reconcile, or could not be checked.",
 };
 
+// PASS / FAIL / UNABLE TO VERIFY: opening + credits - debits against the closing balance.
 export const RECONCILIATION_LABELS: Record<string, string> = {
-  passed: "Balances reconcile",
-  failed: "Balances do not reconcile",
-  incomplete: "Not checked: some rows are invalid",
-  not_available: "Not checked: balances were not available",
+  passed: "PASS: opening + credits − debits equals the closing balance",
+  failed: "FAIL: opening + credits − debits does not equal the closing balance",
+  incomplete: "UNABLE TO VERIFY: some rows could not be read",
+  not_available: "UNABLE TO VERIFY: opening or closing balance not available",
 };
 
 // Codes `POST /api/ca/cases/{reference}/review` can return.
