@@ -7,9 +7,7 @@ export function DevEmailNotice({ outboxUrl }: { outboxUrl?: string }) {
       <p className="font-semibold">Development simulation: no email was sent.</p>
       <p className="mt-1">
         In local development, messages are placed in a developer outbox on this
-        computer instead of being emailed. The email worker (
-        <code>python -m itr_intake_server.email_worker --dev</code>) must be running to deliver
-        them.
+        computer instead of being emailed.
         {outboxUrl && (
           <>
             {" "}

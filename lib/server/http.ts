@@ -12,7 +12,7 @@
 //   (unknown fields are refused, like the Pydantic `extra="forbid"` models).
 
 import { z } from "zod";
-import { getConfig, type Config } from "./config";
+import { ConfigError, getConfig, type Config } from "./config";
 import { sha256Hex } from "./ids";
 
 export const CSRF_HEADER = "x-itr-request";
@@ -111,11 +111,15 @@ type Handler<C> = (request: Request, context: C) => Promise<Response>;
  */
 export function apiRoute<C = unknown>(handler: Handler<C>): Handler<C> {
   return async (request, context) => {
-    if (!originAllowed(request)) return jsonError(403, "forbidden", "Request not allowed.");
     try {
+      if (!originAllowed(request)) return jsonError(403, "forbidden", "Request not allowed.");
       return withApiHeaders(await handler(request, context));
     } catch (error) {
       if (error instanceof HttpError) return jsonError(error.status, error.error, error.userMessage, error.extra);
+      if (error instanceof ConfigError) {
+        console.error("configuration error:", error.message); // names the variable, never its value
+        return jsonError(503, "not_configured", "The server is not configured yet.");
+      }
       console.error("api error", error instanceof Error ? error.name : typeof error);
       return jsonError(500, "internal_error", "Something went wrong.");
     }
