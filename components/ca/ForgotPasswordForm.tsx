@@ -25,7 +25,7 @@ export function ForgotPasswordForm() {
       setDone({ delivery: String(result.data.email_delivery), outboxUrl: result.data.dev_outbox_url as string | undefined });
       return;
     }
-    setError(result.status === 0 ? "The ITR Intake server is not reachable. Is it running?" : "Please check the email address and try again.");
+    setError(result.status === 0 ? "The server could not be reached. Check your connection and try again." : "Please check the email address and try again.");
   }
 
   if (done) {

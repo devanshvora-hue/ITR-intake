@@ -43,7 +43,7 @@ export function RegisterForm() {
       setDone({ delivery: String(result.data.email_delivery), outboxUrl: result.data.dev_outbox_url as string | undefined });
       return;
     }
-    if (result.status === 0) setError("The ITR Intake server is not reachable. Is it running?");
+    if (result.status === 0) setError("The server could not be reached. Check your connection and try again.");
     else if (typeof result.data.code === "string" && PASSWORD_MESSAGES[result.data.code])
       setError(PASSWORD_MESSAGES[result.data.code]);
     else setError("Please check your details and try again.");

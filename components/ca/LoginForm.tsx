@@ -25,7 +25,7 @@ export function LoginForm() {
       return;
     }
     setBusy(false);
-    setError(result.status === 0 ? "The ITR Intake server is not reachable. Is it running?" : "Invalid email or password.");
+    setError(result.status === 0 ? "The server could not be reached. Check your connection and try again." : "Invalid email or password.");
   }
 
   return (

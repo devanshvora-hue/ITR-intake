@@ -50,7 +50,7 @@ export function FirmCodePanel({ initial }: { initial: FirmCodeState }) {
       }
       setError(
         result.status === 0
-          ? "The ITR Intake server is not reachable. Is it running?"
+          ? "No answer came back from the server. Reload the page to see whether the change was made."
           : (ERRORS[result.status]
             ?? `The firm code could not be changed. Please try again. (Reference: ${
               typeof result.data.ref === "string" ? result.data.ref : `${result.status} ${String(result.data.error ?? "")}`})`),

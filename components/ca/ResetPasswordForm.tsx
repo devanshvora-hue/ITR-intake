@@ -50,7 +50,7 @@ export function ResetPasswordForm() {
       setPhase("done");
       return;
     }
-    if (result.status === 0) setError("The ITR Intake server is not reachable. Is it running?");
+    if (result.status === 0) setError("The server could not be reached. Check your connection and try again.");
     else if (result.status === 429) setError("Too many attempts. Please try again later.");
     else if (result.data.error === "invalid_password")
       setError(PASSWORD_MESSAGES[String(result.data.code)] ?? "Please choose a stronger password.");
