@@ -4,7 +4,9 @@ import { redirect } from "next/navigation";
 import { CaStatementsTable } from "@/components/ca/CaStatementsTable";
 import { FirmCodePanel } from "@/components/ca/FirmCodePanel";
 import { LogoutButton } from "@/components/ca/LogoutButton";
+import { PriorityQueue } from "@/components/ca/PriorityQueue";
 import { getCaSession } from "@/lib/ca-session";
+import { priorityQueue } from "@/lib/case-priority";
 import { needsAttention, nextAction, STATEMENT_LABELS, STATEMENT_TONES } from "@/lib/case-readiness";
 import { intakeSummary } from "@/lib/intake";
 import { CASE_STATUS_LABELS as STATUS_LABELS } from "@/lib/case-status";
@@ -29,13 +31,14 @@ export default async function CaDashboard() {
   }
 
   const { me, cases, firmCode, statements } = session;
+  const queue = priorityQueue(cases, statements);
   return (
-    <div className="mx-auto max-w-6xl px-4 py-10 sm:px-6 sm:py-14">
+    <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 sm:py-10 lg:px-8">
       <header className="flex flex-wrap items-end justify-between gap-4">
-        <div>
+        <div className="min-w-0">
           <p className="font-mono text-xs uppercase tracking-[0.18em] text-teal">CA dashboard</p>
-          <h1 className="mt-3 font-serif text-3xl font-medium tracking-tight sm:text-4xl">{me.firm.name}</h1>
-          <p className="mt-2 text-sm text-ink-soft">
+          <h1 className="mt-2 break-words font-serif text-2xl font-semibold tracking-tight sm:text-3xl">{me.firm.name}</h1>
+          <p className="mt-1.5 text-sm text-ink-soft">
             Signed in as <span className="font-medium text-ink">{me.user.full_name}</span> ({me.user.email}) ·{" "}
             {me.user.role === "owner" ? "Firm owner" : "Member"}
           </p>
@@ -43,25 +46,33 @@ export default async function CaDashboard() {
         <LogoutButton />
       </header>
 
-      <section aria-label="Summary" className="mt-8 grid grid-cols-2 gap-4 lg:grid-cols-4">
+      <section aria-label="Summary"
+               className="mt-6 grid grid-cols-2 gap-px overflow-hidden rounded-2xl border border-line bg-line sm:grid-cols-4">
         {[
           { label: "Cases", value: cases.length },
           { label: "Open", value: cases.filter((c) => c.status !== "closed").length },
           { label: "Need CA review", value: cases.filter((c) => c.status === "ca_review_required").length },
           { label: "Need attention", value: cases.filter((c) => needsAttention(c.status, c.readiness)).length },
         ].map((s) => (
-          <div key={s.label} className="rounded-xl border border-line bg-surface p-5">
-            <p className="text-sm text-ink-soft">{s.label}</p>
-            <p className="mt-2 font-serif text-3xl font-medium tabular-nums">{s.value}</p>
+          <div key={s.label} className="bg-surface px-5 py-4">
+            <p className="text-xs text-ink-soft">{s.label}</p>
+            <p className="mt-1 text-2xl font-semibold tabular-nums">{s.value}</p>
           </div>
         ))}
       </section>
 
-      {firmCode && <FirmCodePanel initial={firmCode} />}
+      <div className="mt-6 grid gap-6 lg:grid-cols-[minmax(0,1fr)_22rem] lg:items-start">
+        <PriorityQueue entries={queue} hasCases={cases.length > 0} />
+        {firmCode && (
+          <aside aria-label="Firm settings" className="lg:sticky lg:top-20">
+            <FirmCodePanel initial={firmCode} />
+          </aside>
+        )}
+      </div>
 
-      <section aria-labelledby="cases" className="mt-10 overflow-hidden rounded-2xl border border-line bg-surface">
+      <section aria-labelledby="cases" className="mt-8 overflow-hidden rounded-2xl border border-line bg-surface">
         <div className="border-b border-line px-5 py-4">
-          <h2 id="cases" className="font-serif text-lg font-medium">Client cases</h2>
+          <h2 id="cases" className="text-lg font-semibold tracking-tight">Client cases</h2>
           <p className="mt-1 text-xs text-ink-faint">
             Highlighted cases have an unverified statement review or an outstanding required document. These are
             checklist items from stored data, not a judgement that a return is ready to file.

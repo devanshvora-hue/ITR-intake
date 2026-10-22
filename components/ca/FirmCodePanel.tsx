@@ -65,10 +65,10 @@ export function FirmCodePanel({ initial }: { initial: FirmCodeState }) {
   }
 
   return (
-    <section aria-labelledby="firm-code" className="mt-10 rounded-2xl border border-line bg-surface">
+    <section aria-labelledby="firm-code" className="rounded-2xl border border-line bg-surface">
       <div className="border-b border-line px-5 py-4">
-        <h2 id="firm-code" className="font-serif text-lg font-medium">Firm code</h2>
-        <p className="mt-1 text-sm text-ink-soft">
+        <h2 id="firm-code" className="text-lg font-semibold tracking-tight">Firm code</h2>
+        <p className="mt-1 text-xs leading-relaxed text-ink-soft">
           Clients enter this code to find your firm when they start an intake. It identifies your firm; it is
           not a password.
         </p>
@@ -76,17 +76,17 @@ export function FirmCodePanel({ initial }: { initial: FirmCodeState }) {
 
       <div className="space-y-5 px-5 py-5">
         {active ? (
-          <div className="flex flex-wrap items-center gap-4">
-            <div>
+          <div className="rounded-xl border border-line bg-paper p-4">
+            <div className="flex items-center justify-between gap-3">
               <p className="text-xs font-medium uppercase tracking-wide text-teal">Active code</p>
-              <p className="mt-1 font-mono text-2xl font-medium tracking-[0.12em]" aria-label="Active firm code">
-                {active.display}
-              </p>
-              <p className="mt-1 text-xs text-ink-faint">Active since {day(active.created_at)}</p>
+              <Button type="button" size="sm" onClick={copy} variant="secondary">
+                {copied ? "Copied" : "Copy code"}
+              </Button>
             </div>
-            <Button type="button" onClick={copy} variant="secondary">
-              {copied ? "Copied" : "Copy code"}
-            </Button>
+            <p className="mt-2 break-all font-mono text-2xl font-medium tracking-[0.12em]" aria-label="Active firm code">
+              {active.display}
+            </p>
+            <p className="mt-1 text-xs text-ink-faint">Active since {day(active.created_at)}</p>
           </div>
         ) : (
           <p className="text-sm text-ink-soft">
@@ -160,7 +160,7 @@ export function FirmCodePanel({ initial }: { initial: FirmCodeState }) {
             <h3 className="text-xs font-medium uppercase tracking-wide text-ink-faint">Earlier codes</h3>
             <ul className="mt-2 divide-y divide-line rounded-xl border border-line">
               {previous.map((p) => (
-                <li key={p.code} className="flex flex-wrap items-center justify-between gap-2 px-4 py-2.5 text-sm">
+                <li key={p.code} className="flex flex-wrap items-center justify-between gap-x-3 gap-y-0.5 px-4 py-2.5 text-sm">
                   <span className="font-mono text-ink-faint line-through">{p.display}</span>
                   <span className="text-xs text-ink-faint">Revoked {day(p.revoked_at)} · no longer accepted</span>
                 </li>
