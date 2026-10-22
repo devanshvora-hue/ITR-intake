@@ -1,6 +1,7 @@
 // Types and labels for the CA case-detail page (Stage 5.8). Shapes mirror
 // `GET /api/ca/cases/{reference}` (app.py `_ca_case_detail` and
 // case_review.py `review_view`); nothing here is invented by the frontend.
+import type { CaseReadiness } from "./case-readiness";
 import type { CaChecklistItem } from "./checklist";
 import type { DocumentRequest } from "./document-requests";
 import type { IntakeProgress } from "./intake";
@@ -42,6 +43,13 @@ export type ReviewRow = {
   classification_reason: string | null;
   /** The PDF page the row was read from (null for CSV). */
   source_page: number | null;
+  mode: string | null;
+  counterparty: string | null;
+  /** auto / confirm (provisional, CA to confirm) / manual (no category) / reviewed (CA decided) / rejected (not read). */
+  group: "auto" | "confirm" | "manual" | "reviewed" | "rejected";
+  /** What the rules said; `category` is the one in force (the CA's when decided). */
+  classifier_category: string | null;
+  decision: { decision: "confirmed" | "changed"; note: string | null; decided_at: string } | null;
 };
 
 export type Reconciliation =
@@ -62,14 +70,23 @@ export type CaseReview = {
   period_end: string | null;
   verified: boolean;
   unverified_reasons: string[];
-  totals: { rows: number; valid: number; invalid: number; needs_review: number; credits: string; debits: string };
+  totals: { rows: number; valid: number; invalid: number; needs_review: number; credits: string; debits: string;
+    auto: number; confirm: number; manual: number; reviewed: number; rejected: number;
+    /** CA decisions kept but not applied because their row reads differently after the review was prepared again. */
+    stale_decisions: number };
   reconciliation: Reconciliation;
+  itr: { categories: CategoryTotal[]; key_figures: KeyFigure[]; flags: ReviewFlag[] };
   rows: ReviewRow[];
 };
+
+export type CategoryTotal = { category: string; count: number; debit: string; credit: string; net: string };
+export type KeyFigure = { label: string; amount: string; basis: string };
+export type ReviewFlag = { code: string; title: string; detail: string; amount: string | null; rows: number[] };
 
 export type CaseDetail = {
   case: CaseInfo;
   intake: IntakeProgress;
+  readiness: CaseReadiness;
   profile: CaseProfile;
   statements: StatementUpload[];
   review: CaseReview | null;

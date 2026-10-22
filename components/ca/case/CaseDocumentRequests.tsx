@@ -204,18 +204,37 @@ export function CaseDocumentRequests({ reference, requests, caseClosed }: {
   requests: DocumentRequest[];
   caseClosed: boolean;
 }) {
+  const groups: [string, DocumentRequest[]][] = [
+    ["Outstanding", requests.filter((r) => r.status === "requested")],
+    ["Received", requests.filter((r) => r.status === "received")],
+    ["Waived", requests.filter((r) => r.status === "waived")],
+  ];
   return (
     <section aria-labelledby="doc-requests" className="mt-8 rounded-2xl border border-line bg-white p-6">
-      <h2 id="doc-requests" className="font-serif text-xl font-medium">Supporting documents</h2>
+      <div className="flex flex-wrap items-baseline justify-between gap-2">
+        <h2 id="doc-requests" className="font-serif text-xl font-medium">Requested documents</h2>
+        <p className="text-xs text-ink-soft">
+          {groups.map(([label, items]) => `${items.length} ${label.toLowerCase()}`).join(" · ")}
+        </p>
+      </div>
       <div className="mt-4 grid gap-6 lg:grid-cols-[2fr_1fr]">
         {requests.length === 0 ? (
-          <p className="text-sm text-ink-soft">No documents requested yet.</p>
+          <p className="text-sm text-ink-soft">
+            No documents requested yet. Request one from the suggestions above or write your own.
+          </p>
         ) : (
-          <ul className="space-y-3">
-            {requests.map((r) => (
-              <RequestItem key={r.id} reference={reference} request={r} caseClosed={caseClosed} />
+          <div className="space-y-5">
+            {groups.filter(([, items]) => items.length).map(([label, items]) => (
+              <div key={label}>
+                <h3 className="text-xs font-medium uppercase tracking-wide text-ink-soft">{label} ({items.length})</h3>
+                <ul className="mt-2 space-y-3">
+                  {items.map((r) => (
+                    <RequestItem key={r.id} reference={reference} request={r} caseClosed={caseClosed} />
+                  ))}
+                </ul>
+              </div>
             ))}
-          </ul>
+          </div>
         )}
         <CreateForm reference={reference} caseClosed={caseClosed} />
       </div>

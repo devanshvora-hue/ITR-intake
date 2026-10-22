@@ -179,7 +179,7 @@ describe("internal workbook", () => {
     await prepare(ca, reference, await upload(client, reference, CSV_FORMULA));
     const response = await ca.get(workbookRoute, { params: { reference } });
     expect(response.status).toBe(200);
-    expect(response.headers.get("content-disposition")).toBe(`attachment; filename="${reference}-internal-workbook.xlsx"`);
+    expect(response.headers.get("content-disposition")).toBe(`attachment; filename="SyntheticBankLtd_AshaRao_ITR_Summary_FY${FY}.xlsx"`);
     expect(response.headers.get("cache-control")).toBe("no-store");
     const wb = new ExcelJS.Workbook();
     await wb.xlsx.load(await response.arrayBuffer());

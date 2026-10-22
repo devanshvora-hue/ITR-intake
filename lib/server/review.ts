@@ -11,6 +11,7 @@
 // as unverified. Nothing here logs narrations, amounts or file names.
 
 import { recordAudit } from "./audit";
+import { loadDecisions, rowFingerprint, type Decision } from "./corrections";
 import { syncCaseStatus } from "./case-status";
 import { refreshChecklist } from "./checklist";
 import type { CaseRow } from "./client-auth";
@@ -21,6 +22,7 @@ import { checkKey, type FileStore, StorageError } from "./storage";
 import { uploadView } from "./views";
 import { classifyStatement, type Category as ClassifiedCategory } from "../statement/classifier";
 import type { TransactionMode as ClassifiedMode } from "../statement/text";
+import { categoryTotals, keyFigures, reviewFlags, type SummaryRow } from "../statement/itr-summary";
 import { buildWorkbook } from "../statement/workbook";
 import { parseCsv, parsePdfPages, REJECTED, type ImportResult } from "../statement/import";
 import { containsImages, ExtractionFailed, ExtractorBusy, extractPdfPages } from "../statement/pdf-text";
@@ -108,9 +110,11 @@ export async function prepareReview(db: Db, store: FileStore, input: {
     closing: result.statedClosing !== null ? parseAmount(result.statedClosing, true) : derived.closing,
   };
   const report = validateRows(usable);
-  const profile = (caseRow.profile_json ?? {}) as { full_name?: string };
-  const classified = new Map(classifyStatement(report.transactions, { name: profile.full_name || caseRow.client_first_name })
-    .map((t) => [t.rowNumber, t]));
+  const profile = (caseRow.profile_json ?? {}) as { full_name?: string; income_sources?: unknown };
+  const declaredSources = Array.isArray(profile.income_sources)
+    ? profile.income_sources.filter((s): s is string => typeof s === "string") : [];
+  const classified = new Map(classifyStatement(report.transactions,
+    { name: profile.full_name || caseRow.client_first_name, declaredSources }).map((t) => [t.rowNumber, t]));
   const issues = new Map<number, string[]>();
   for (const issue of report.errors) issues.set(issue.rowNumber, [...(issues.get(issue.rowNumber) ?? []), issue.code]);
 
@@ -177,16 +181,61 @@ type StoredRow = {
   row_number: number; is_valid: boolean; issues_json: string[]; txn_date: string | null; narration: string | null;
   debit: string | null; credit: string | null; balance: string | null; category: string | null; confidence: string | null;
   review_status: string | null; flags_json: string[]; classification_reason: string | null; matched_rule: string | null;
-  mode: string | null; counterparty: string | null; raw_debit: string | null; raw_credit: string | null; raw_balance: string | null;
-  source_page: number | null;
+  mode: string | null; counterparty: string | null; raw_date: string | null; raw_narration: string | null;
+  raw_debit: string | null; raw_credit: string | null; raw_balance: string | null; source_page: number | null;
 };
 
-export async function storedRows(db: Db, firmId: string, caseId: string): Promise<StoredRow[]> {
-  return db.query<StoredRow>(
+/** A stored row with the CA's decision applied: `category` is the one in force, `classifier_category` what the rules said. */
+export type ReviewedRow = StoredRow & { classifier_category: string | null; decision: Decision | null; group: ReviewGroup };
+
+/**
+ * auto: the rules classified it; confirm: a provisional category the CA should confirm; manual: no category could be
+ * given; reviewed: the CA decided; rejected: the row could not be read (an extraction problem, not a classification one).
+ */
+export type ReviewGroup = "auto" | "confirm" | "manual" | "reviewed" | "rejected";
+
+function groupOf(r: StoredRow, decision: Decision | null): ReviewGroup {
+  if (!r.is_valid) return "rejected";
+  if (decision) return "reviewed";
+  if (r.category === "Others – Needs Review") return "manual";
+  return r.review_status === "Auto-classified" ? "auto" : "confirm";
+}
+
+/**
+ * The rows of the case's current review, each with the CA's decision applied when it still matches the row, and
+ * how many decisions no longer match (kept, not applied: the row reads differently after the review was prepared
+ * again). A row the CA put in a real category is explained, so the classifier's "unexplained" flags no longer apply.
+ */
+export async function storedRows(db: Db, firmId: string, caseId: string, uploadId: string | null):
+  Promise<{ rows: ReviewedRow[]; staleDecisions: number }> {
+  const rows = await db.query<StoredRow>(
     `SELECT row_number, is_valid, issues_json, txn_date, narration, debit::text AS debit, credit::text AS credit,
             balance::text AS balance, category, confidence, review_status, flags_json, classification_reason,
-            matched_rule, mode, counterparty, raw_debit, raw_credit, raw_balance, source_page
+            matched_rule, mode, counterparty, raw_date, raw_narration, raw_debit, raw_credit, raw_balance, source_page
      FROM statement_rows WHERE case_id = $1 AND firm_id = $2 ORDER BY row_number`, [caseId, firmId]);
+  const decisions = uploadId ? await loadDecisions(db, firmId, caseId, uploadId) : new Map<number, Decision>();
+  let applied = 0;
+  const reviewed = rows.map((r) => {
+    const d = decisions.get(r.row_number);
+    const decision = d && r.is_valid && d.fingerprint === rowFingerprint(r) ? d : null;
+    if (decision) applied++;
+    const explained = decision !== null && decision.category !== "Others – Needs Review";
+    return { ...r, classifier_category: r.category, category: decision ? decision.category : r.category, decision,
+      flags_json: explained ? [] : r.flags_json, group: groupOf(r, decision) };
+  });
+  return { rows: reviewed, staleDecisions: decisions.size - applied };
+}
+
+function declaredSourcesOf(caseRow: { profile_json: Record<string, unknown> | null }): string[] {
+  const sources = (caseRow.profile_json ?? {}).income_sources;
+  return Array.isArray(sources) ? sources.filter((s): s is string => typeof s === "string") : [];
+}
+
+function summaryRows(rows: ReviewedRow[]): SummaryRow[] {
+  return rows.filter((r) => r.is_valid && r.txn_date && r.category).map((r) => ({
+    rowNumber: r.row_number, date: r.txn_date as string, narration: r.narration ?? "", debit: parseAmount(r.debit),
+    credit: parseAmount(r.credit), category: r.category as ClassifiedCategory,
+  }));
 }
 
 /** The stored review of a case for its own firm's CA, or null. */
@@ -196,8 +245,9 @@ export async function reviewView(db: Db, firmId: string, caseRow: ReviewCase) {
     "SELECT * FROM statement_uploads WHERE id = $1 AND case_id = $2 AND firm_id = $3",
     [caseRow.reviewed_upload_id, caseRow.id, firmId]);
   if (!upload) return null;
-  const rows = await storedRows(db, firmId, caseRow.id);
+  const { rows, staleDecisions } = await storedRows(db, firmId, caseRow.id, caseRow.reviewed_upload_id);
   const check = verification(caseRow, upload.status, rows);
+  const count = (group: ReviewGroup) => rows.filter((r) => r.group === group).length;
   return {
     statement: uploadView(upload),
     prepared_at: caseRow.reviewed_at,
@@ -208,15 +258,24 @@ export async function reviewView(db: Db, firmId: string, caseRow: ReviewCase) {
     unverified_reasons: check.unverifiedReasons,
     totals: {
       rows: rows.length, valid: check.validCount, invalid: check.invalid,
-      needs_review: rows.filter((r) => r.is_valid && r.review_status !== "Auto-classified").length,
+      needs_review: count("confirm") + count("manual"),
+      auto: count("auto"), confirm: count("confirm"), manual: count("manual"), reviewed: count("reviewed"),
+      rejected: count("rejected"), stale_decisions: staleDecisions,
       credits: formatPaise(check.credits), debits: formatPaise(check.debits),
     },
     reconciliation: check.reconciliation,
+    itr: {
+      categories: categoryTotals(summaryRows(rows)),
+      key_figures: keyFigures(summaryRows(rows)),
+      flags: reviewFlags(summaryRows(rows), { financialYear: caseRow.financial_year, declaredSources: declaredSourcesOf(caseRow) }),
+    },
     rows: rows.map((r) => ({
       row_number: r.row_number, is_valid: r.is_valid, issues: r.issues_json, date: r.txn_date, narration: r.narration,
       debit: r.debit, credit: r.credit, balance: r.balance, category: r.category, confidence: r.confidence,
       review_status: r.review_status, flags: r.flags_json, classification_reason: r.classification_reason,
-      source_page: r.source_page,
+      source_page: r.source_page, mode: r.mode, counterparty: r.counterparty, group: r.group,
+      classifier_category: r.classifier_category,
+      decision: r.decision && { decision: r.decision.decision, note: r.decision.note, decided_at: r.decision.decidedAt },
     })),
   };
 }
@@ -245,17 +304,21 @@ const UNVERIFIED_TEXT: Record<string, string> = {
 export async function buildCaseWorkbook(db: Db, firmId: string, caseRow: ReviewCase): Promise<Uint8Array> {
   const view = await reviewView(db, firmId, caseRow);
   if (!view) throw new NoReview();
-  const rows = await storedRows(db, firmId, caseRow.id);
+  const { rows } = await storedRows(db, firmId, caseRow.id, caseRow.reviewed_upload_id);
   const invalid = rows.filter((r) => !r.is_valid);
   const transactions = rows.filter((r) => r.is_valid).map((r) => ({
     rowNumber: r.row_number, date: r.txn_date as string, narration: r.narration as string,
     debit: parseAmount(r.debit), credit: parseAmount(r.credit), balance: r.balance === null ? null : parseAmount(r.balance, true),
     rawDebit: r.raw_debit, rawCredit: r.raw_credit, rawBalance: r.raw_balance,
     mode: (r.mode ?? "Other") as ClassifiedMode, counterparty: r.counterparty,
-    category: r.category as ClassifiedCategory, classificationReason: r.classification_reason ?? "",
+    category: r.category as ClassifiedCategory,
+    classificationReason: r.decision
+      ? `CA ${r.decision.decision === "changed" ? `changed the category from ${r.classifier_category}` : "confirmed the category"}`
+        + `${r.decision.note ? `: ${r.decision.note}` : "."} Rules said: ${r.classification_reason ?? ""}`
+      : r.classification_reason ?? "",
     confidence: (r.confidence ?? "low") as "high" | "medium" | "low",
-    reviewStatus: (r.review_status ?? "Needs review") as "Auto-classified" | "Needs confirmation" | "Needs review",
-    matchedRule: r.matched_rule ?? "uncertain", flags: r.flags_json,
+    reviewStatus: (r.decision ? "Auto-classified" : r.review_status ?? "Needs review") as "Auto-classified" | "Needs confirmation" | "Needs review",
+    matchedRule: r.decision ? `ca.${r.decision.decision}` : r.matched_rule ?? "uncertain", flags: r.flags_json,
   }));
   const rec = view.reconciliation;
   const reconciliation = rec.status === "not_available" ? null : {
@@ -271,7 +334,7 @@ export async function buildCaseWorkbook(db: Db, firmId: string, caseRow: ReviewC
   }
   const profile = (caseRow.profile_json ?? {}) as { full_name?: string; bank_name?: string; account_last4?: string };
   return buildWorkbook({
-    transactions, rowsReceived: rows.length, invalidCount: invalid.length, reconciliation,
+    transactions, rowsReceived: rows.length, invalidCount: invalid.length, reconciliation, flags: view.itr.flags,
     metadata: {
       clientName: profile.full_name || caseRow.client_first_name, clientReference: caseRow.reference,
       bankName: profile.bank_name, accountNumber: profile.account_last4, financialYear: caseRow.financial_year,

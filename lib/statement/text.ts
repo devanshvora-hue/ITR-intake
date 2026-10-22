@@ -28,7 +28,10 @@ export function detectMode(narration: string): TransactionMode {
   return "Other";
 }
 
-/** Best-effort counterparty from common UPI/IMPS/NEFT/RTGS layouts; null when not recognised. */
+// Segments that are routing codes, not names.
+const NOT_A_NAME = /^(UPI|IMPS|NEFT|RTGS|N?ACH|ECS|P2[AMP]|DR|CR|IN|OUT|PAYMENT|PAY|TRANSFER)$/;
+
+/** Best-effort counterparty from common UPI/IMPS/NEFT/RTGS/NACH layouts; null when not recognised. */
 export function extractCounterparty(narration: string): string | null {
   const head = narration.trim().toUpperCase();
   if (head.startsWith("UPI/") || head.startsWith("IMPS/")) {
@@ -38,6 +41,12 @@ export function extractCounterparty(narration: string): string | null {
   if (head.startsWith("NEFT") || head.startsWith("RTGS")) {
     const parts = narration.split("-");
     if (parts.length > 2 && parts[2].trim()) return parts[2].trim();
+  }
+  // Short layouts such as "UPI/RAHUL-MART" or "NEFT SALARY/ACME SYSTEMS PVT LTD": the last segment that reads as a name.
+  if (/^(UPI|IMPS|NEFT|RTGS|N?ACH|ECS)\b/.test(head) && narration.includes("/")) {
+    const named = narration.split("/").slice(1).map((s) => s.trim())
+      .filter((s) => /[A-Za-z]{2}/.test(s) && !NOT_A_NAME.test(s.toUpperCase()) && !/^[A-Za-z]{0,4}\d{6,}$/.test(s));
+    if (named.length) return named[named.length - 1];
   }
   return null;
 }

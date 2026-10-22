@@ -42,7 +42,9 @@ export function WorkbookDownload({ reference, available, verified }: {
       const url = URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.href = url;
-      link.download = `${reference}-internal-workbook.xlsx`;
+      // The server names the file ([Bank]_[Name]_ITR_Summary_FY[YYYY-YY].xlsx).
+      const named = /filename="([^"]+)"/.exec(res.headers.get("content-disposition") ?? "");
+      link.download = named?.[1] ?? `${reference}-ITR-Summary.xlsx`;
       document.body.appendChild(link);
       link.click();
       link.remove();

@@ -10,6 +10,7 @@
 
 import ExcelJS from "exceljs";
 import { CATEGORIES, money, type Category, type ClassifiedTransaction } from "./classifier";
+import type { ReviewFlag } from "./itr-summary";
 import { formatPaise } from "./validation";
 
 export const DISCLAIMER =
@@ -80,6 +81,8 @@ export type WorkbookInput = {
   invalidCount: number;
   reconciliation: Reconciliation | null;
   metadata: StatementMetadata;
+  /** Review flags (specification G), listed under "Notes / Assumptions – Please Review". */
+  flags?: ReviewFlag[];
   /** Line written in Summary!A3 (the verification status), with its colours. */
   statusLine?: { text: string; verified: boolean };
 };
@@ -376,24 +379,32 @@ function writeSummary(ws: ExcelJS.Worksheet, input: WorkbookInput, last: number)
     cell.border = TOTAL_BORDER;
     if (c > 2) moneyCell(cell);
   }
+  const totalRow = row;
   row++;
   ws.getCell(row, 1).value = "Check: uncategorised or invalid category labels";
   ws.getCell(row, 1).font = NOTE_FONT;
-  ws.getCell(row, 2).value = formula(`COUNTA(${allCat})-B${row - 1}`);
+  ws.getCell(row, 2).value = formula(`COUNTA(${allCat})-B${totalRow}`);
+  row++;
+  ws.getCell(row, 1).value = "Check: TOTAL matches All Transactions (debit, credit)";
+  ws.getCell(row, 1).font = NOTE_FONT;
+  ws.getCell(row, 2).value = formula(`IF(AND(ABS(C${totalRow}-SUM(${allDebit}))<0.005,ABS(D${totalRow}-SUM(${allCredit}))<0.005),"✓ matches","✗ difference")`);
 
   row += 2;
-  ws.getCell(row, 1).value = "Key figures (as classified; not tax figures)";
+  ws.getCell(row, 1).value = "Key Figures for ITR (gross, as classified; not a tax computation)";
   ws.getCell(row, 1).font = SECTION_FONT;
   const keyFigures: [string, Category, "credit" | "debit"][] = [
-    ["Credits classified as Salary / Pension", "Salary / Pension", "credit"],
-    ["Savings bank interest credited", "Interest – Savings Bank", "credit"],
-    ["FD / RD / other interest credited", "Interest – FD / RD / Others", "credit"],
-    ["Dividends credited", "Dividend", "credit"],
+    ["Salary / pension credits", "Salary / Pension", "credit"],
+    ["Business / professional receipts", "Business / Professional Receipts", "credit"],
+    ["Interest – savings bank", "Interest – Savings Bank", "credit"],
+    ["Interest – FD / RD / others", "Interest – FD / RD / Others", "credit"],
+    ["Rent received", "Rent Received", "credit"],
+    ["Dividend", "Dividend", "credit"],
+    ["Tax-saving investments noticed (80C-type)", "Investments – Tax-saving", "debit"],
+    ["Health insurance noticed (80D-type)", "Insurance – Health", "debit"],
+    ["Donations noticed (80G-type)", "Donations", "debit"],
+    ["Loan EMI / repayments (home loan: 24(b) / 80C)", "Loan EMI / Repayment", "debit"],
+    ["Tax paid", "Tax Payments", "debit"],
     ["Income tax refunds received", "Income Tax Refund", "credit"],
-    ["Payments classified as Tax Payments", "Tax Payments", "debit"],
-    ["Payments to tax-saving type instruments", "Investments – Tax-saving", "debit"],
-    ["Health insurance payments", "Insurance – Health", "debit"],
-    ["Loan EMI / repayments", "Loan EMI / Repayment", "debit"],
     ["Cash withdrawals", "Cash Withdrawal", "debit"],
     ["Cash deposits", "Cash Deposit", "credit"],
     ["Credits still in Others – Needs Review", "Others – Needs Review", "credit"],
@@ -408,25 +419,30 @@ function writeSummary(ws: ExcelJS.Worksheet, input: WorkbookInput, last: number)
   labelValue(++row, "Unexplained credits ≥ ₹50,000 (at generation)", txns.filter((t) => t.flags.includes("large_credit")).length);
 
   row += 2;
-  ws.getCell(row, 1).value = "Notes and assumptions";
+  ws.getCell(row, 1).value = "Notes / Assumptions – Please Review";
   ws.getCell(row, 1).font = SECTION_FONT;
+  const flagNotes = (input.flags ?? []).map((f) => `${f.title} (for CA verification): ${f.detail}`
+    + (f.rows.length ? ` Rows: ${f.rows.slice(0, 25).join(", ")}${f.rows.length > 25 ? " and more" : ""}.` : ""));
   const notes = [
+    ...flagNotes,
     "Amounts and narrations are reproduced exactly as extracted; nothing has been adjusted or rounded.",
     "Categories describe what each transaction appears to be from its narration. They are not conclusions on whether any amount is taxable, exempt or deductible.",
     "To reclassify, change the Category in 'All Transactions' (choose from the list). The totals, reconciliation and key figures above are live formulas and update automatically.",
     "Category sheets, 'Needs Review' and the 'at generation' values are a snapshot written when the workbook was generated; they do not move rows when categories are changed.",
     "The large-credit review threshold (₹50,000) and the reconciliation tolerance (₹0.01) are configurable settings, not legal thresholds.",
     "Recurring credits are flagged for confirmation but not assigned an income category.",
+    "Debits and credits are shown gross; nothing has been netted off.",
+    "Categories changed or confirmed by the CA in ITR Intake are marked 'CA changed' / 'CA confirmed' in the reason column.",
     "AIS / Form 26AS reconciliation appears only if those reports were supplied.",
   ];
-  for (const note of notes) {
+  notes.forEach((note, i) => {
     row++;
     const cell = ws.getCell(row, 1);
-    cell.value = `• ${note}`;
+    cell.value = `${i + 1}. ${note}`;
     cell.alignment = WRAP_TOP;
     ws.mergeCells(row, 1, row, 6);
-    ws.getRow(row).height = 30;
-  }
+    ws.getRow(row).height = Math.min(90, 30 + Math.floor(note.length / 110) * 14);
+  });
   row += 2;
   ws.getCell(row, 1).value = "Disclaimer";
   ws.getCell(row, 1).font = SECTION_FONT;

@@ -2,10 +2,12 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { CaseChecklist } from "@/components/ca/case/CaseChecklist";
+import { CaseItrSummary } from "@/components/ca/case/CaseItrSummary";
 import { CaseDocumentRequests } from "@/components/ca/case/CaseDocumentRequests";
 import { CaseReviewPanel } from "@/components/ca/case/CaseReviewPanel";
 import { CaseStatements } from "@/components/ca/case/CaseStatements";
 import { getCaCase } from "@/lib/ca-case";
+import type { CaseDetail } from "@/lib/case-review";
 import { CASE_STATUS_LABELS } from "@/lib/case-status";
 import { INCOME_SOURCES } from "@/lib/checklist";
 import { CA_INTAKE_STEP_LABELS } from "@/lib/intake";
@@ -20,6 +22,57 @@ function Shell({ children }: { children: React.ReactNode }) {
     <div className="mx-auto max-w-6xl px-4 py-10 sm:px-6 sm:py-14">
       <Link href="/ca" className="text-sm font-medium text-teal underline">← Back to dashboard</Link>
       {children}
+    </div>
+  );
+}
+
+const RECON_SHORT: Record<string, string> = { passed: "PASS", failed: "FAIL", incomplete: "Unable to verify",
+  not_available: "Unable to verify" };
+
+/** The one thing the CA should do next on this case. */
+function nextStep(detail: CaseDetail): string {
+  const { case: c, readiness: r, review } = detail;
+  if (c.status === "closed") return "Closed";
+  if (r.statement === "none") return "Wait for the client's bank statement";
+  if (!review) return "Prepare the statement review";
+  const open = review.totals.confirm + review.totals.manual;
+  if (open) return `Review ${open} transaction${open === 1 ? "" : "s"} needing a decision`;
+  if (!review.verified) return "Check the unverified statement before relying on it";
+  if (r.documents.required_outstanding) {
+    const n = r.documents.required_outstanding;
+    return `Follow up on ${n} required document${n === 1 ? "" : "s"}`;
+  }
+  return "Download the ITR summary workbook";
+}
+
+function SummaryStrip({ detail }: { detail: CaseDetail }) {
+  const { case: c, profile, review, readiness: r } = detail;
+  const items: [string, string, string?][] = [
+    ["Financial year", `FY ${c.financial_year}`],
+    ["Bank account", `${profile.bank_name ?? "Bank not given"}${profile.account_last4 ? ` · XXXX${profile.account_last4}` : ""}`],
+    ["Extraction", review ? (review.verified ? "Verified" : "Unverified") : "Not prepared", review && !review.verified ? "text-amber-ink" : undefined],
+    ["Reconciliation", review ? RECON_SHORT[review.reconciliation.status] ?? review.reconciliation.status : "—",
+      review?.reconciliation.status === "passed" ? "text-teal-deep" : review ? "text-amber-ink" : undefined],
+    ["Transactions", review ? `${review.totals.rows} · ${review.totals.valid} valid · ${review.totals.rejected} not read` : "—"],
+    ["Needing review", review ? String(review.totals.confirm + review.totals.manual) : "—",
+      review && review.totals.confirm + review.totals.manual ? "text-amber-ink" : undefined],
+    ["Required documents outstanding", String(r.documents.required_outstanding),
+      r.documents.required_outstanding ? "text-amber-ink" : undefined],
+  ];
+  return (
+    <div className="mt-6 rounded-2xl border border-line bg-white p-5">
+      <dl className="grid gap-4 text-sm sm:grid-cols-2 lg:grid-cols-4">
+        {items.map(([label, value, tone]) => (
+          <div key={label}>
+            <dt className="text-xs text-ink-soft">{label}</dt>
+            <dd className={`mt-1 font-medium ${tone ?? ""}`}>{value}</dd>
+          </div>
+        ))}
+        <div className="sm:col-span-2 lg:col-span-1">
+          <dt className="text-xs text-ink-soft">Next step</dt>
+          <dd className="mt-1 font-semibold text-teal-deep">{nextStep(detail)}</dd>
+        </div>
+      </dl>
     </div>
   );
 }
@@ -67,19 +120,14 @@ export default async function CaCasePage({ params }: { params: Promise<{ referen
         </span>
       </header>
 
-      <dl className="mt-6 grid gap-4 rounded-2xl border border-line bg-white p-5 text-sm sm:grid-cols-3">
-        <div>
-          <dt className="text-xs text-ink-soft">Bank</dt>
-          <dd className="mt-1 font-medium">{profile.bank_name ?? "Not provided"}</dd>
-        </div>
-        <div>
-          <dt className="text-xs text-ink-soft">Account</dt>
-          <dd className="mt-1 font-medium">{profile.account_last4 ? `ending ${profile.account_last4}` : "Not provided"}</dd>
-        </div>
-        <div>
-          <dt className="text-xs text-ink-soft">Client details</dt>
-          <dd className="mt-1 font-medium">{profile.complete ? "Complete" : "Incomplete"}</dd>
-        </div>
+      <SummaryStrip detail={result.detail} />
+
+      <details className="mt-4 rounded-2xl border border-line bg-white p-5 text-sm">
+        <summary className="cursor-pointer font-medium">
+          Client intake: {intake.steps.filter((s) => s.done).length} of {intake.steps.length} steps
+          {intake.complete ? " complete" : ""} · details {profile.complete ? "complete" : "incomplete"}
+        </summary>
+      <dl className="mt-4 grid gap-4 sm:grid-cols-3">
         <div className="sm:col-span-3">
           <dt className="text-xs text-ink-soft">Client said these applied in FY {c.financial_year}</dt>
           <dd className="mt-1 font-medium">
@@ -112,12 +160,14 @@ export default async function CaCasePage({ params }: { params: Promise<{ referen
           <dd className="mt-1">{when(c.reviewed_at)}</dd>
         </div>
       </dl>
+      </details>
 
       <CaseStatements reference={c.reference} statements={statements} review={review} caseClosed={c.status === "closed"} />
-      <CaseReviewPanel reference={c.reference} review={review} />
+      <CaseReviewPanel reference={c.reference} review={review} caseClosed={c.status === "closed"} />
       <CaseChecklist reference={c.reference} items={checklist} caseClosed={c.status === "closed"} />
       <CaseDocumentRequests reference={c.reference} requests={document_requests}
                             caseClosed={c.status === "closed"} />
+      <CaseItrSummary reference={c.reference} review={review} />
     </Shell>
   );
 }
