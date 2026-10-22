@@ -44,7 +44,7 @@ export function VerifyEmail() {
         </Link>
       </div>
     );
-  if (state === "unavailable") return <FormMessage tone="error">The ITR Intake server is not reachable. Is it running?</FormMessage>;
+  if (state === "unavailable") return <FormMessage tone="error">The server could not be reached. Check your connection and try again.</FormMessage>;
   return (
     <FormMessage tone="error">
       This verification link is invalid or has expired. Links work once and expire after 24 hours.
