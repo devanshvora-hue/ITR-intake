@@ -6,16 +6,18 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 import { CaseTabs } from "@/components/ca/case/CaseTabs";
+import { TabPendingHint } from "@/components/ca/case/TabPendingHint";
 import { pendingItems, priorityReasons } from "@/lib/case-priority";
 import { CASE_TABS, caseTabHref, parseCaseTab } from "@/lib/case-tabs";
 
 const lookup: { state: string } = { state: "signed_out" };
+const linkStatus = { pending: false };
 vi.mock("@/lib/ca-case", () => ({ getCaCase: async () => lookup }));
 vi.mock("next/navigation", () => ({ redirect: (to: string) => { throw new Error(`NEXT_REDIRECT ${to}`); } }));
 vi.mock("next/link", async () => {
   const React = await import("react");
   return { default: ({ href, children, ...rest }: { href: string; children: unknown }) =>
-    React.createElement("a", { href, ...rest }, children as never) };
+    React.createElement("a", { href, ...rest }, children as never), useLinkStatus: () => linkStatus };
 });
 
 describe("parseCaseTab", () => {
@@ -43,8 +45,34 @@ describe("CaseTabs", () => {
     for (const tab of CASE_TABS) expect(markup).toContain(`href="/ca/cases/IT-ABC-123?tab=${tab}"`);
     expect(markup.match(/aria-current="page"/g)).toHaveLength(1);
     expect(markup).toMatch(/href="\/ca\/cases\/IT-ABC-123\?tab=transactions" aria-current="page"[^>]*>Transactions<span[^>]*>4<span class="sr-only"> pending<\/span>/);
-    expect(markup).toMatch(/>Documents<\/a>/); // a zero count is not shown
+    // A zero count shows no badge: the label is followed only by the (hidden) loading hint.
+    expect(markup).toMatch(/>Documents<span aria-hidden="true" data-pending="false"/);
     expect(markup).not.toContain('role="tab"'); // navigation between URLs, not an in-page tab list
+  });
+});
+
+describe("tab loading feedback", () => {
+  const tabs = () => renderToStaticMarkup(createElement(CaseTabs, { reference: "IT-ABC-123", current: "overview" }));
+
+  it("puts a hidden hint in every other tab, positioned so it never changes the tab's width", () => {
+    linkStatus.pending = false;
+    const markup = tabs();
+    expect(markup.match(/data-pending="false"/g)).toHaveLength(3); // not in the current tab: nothing to load there
+    const overview = /<a href="[^"]*tab=overview"[^>]*>(.*?)<\/a>/.exec(markup)![1];
+    expect(overview).not.toContain("data-pending");
+    expect(markup).toMatch(/<a href="[^"]*tab=transactions" class="relative /);
+    expect(markup).toMatch(/aria-hidden="true" data-pending="false" class="pointer-events-none absolute [^"]*opacity-0"/);
+    expect(markup).not.toContain("Loading section");
+  });
+
+  it("shows the pulsing bar and tells screen readers while the section loads", () => {
+    linkStatus.pending = true;
+    const markup = renderToStaticMarkup(createElement(TabPendingHint));
+    expect(markup).toMatch(/data-pending="true" class="[^"]*opacity-100 motion-safe:animate-pulse"/);
+    expect(markup).not.toMatch(/(?<!motion-safe:)animate-pulse/);
+    expect(markup).toContain('<span role="status" class="sr-only">Loading section…</span>');
+    linkStatus.pending = false;
+    expect(renderToStaticMarkup(createElement(TabPendingHint))).toContain('<span role="status" class="sr-only"></span>');
   });
 });
 

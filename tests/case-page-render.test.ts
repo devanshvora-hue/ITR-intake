@@ -26,7 +26,7 @@ vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh() {}, replace() 
 vi.mock("next/link", async () => {
   const React = await import("react");
   return { default: ({ href, children, ...rest }: { href: string; children: unknown }) =>
-    React.createElement("a", { href, ...rest }, children as never) };
+    React.createElement("a", { href, ...rest }, children as never), useLinkStatus: () => ({ pending: false }) };
 });
 // The case page asks the API for the case; here it gets the detail produced by the real route.
 vi.mock("@/lib/ca-case", () => ({ getCaCase: async () => ({ state: "found", detail: holder.detail }) }));

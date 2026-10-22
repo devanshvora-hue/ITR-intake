@@ -1,11 +1,13 @@
 import Link from "next/link";
 import { CASE_TAB_LABELS, CASE_TABS, caseTabHref, type CaseTab } from "@/lib/case-tabs";
 import { RevealCurrentTab } from "./RevealCurrentTab";
+import { TabPendingHint } from "./TabPendingHint";
 
 // The case sections as links, so each is a real URL: the browser's back and
 // forward move between them and a refresh keeps the section. Marked up as
 // navigation (aria-current), not as an ARIA tab list, because each choice
 // loads a page. On a phone the bar scrolls sideways if the names do not fit.
+// While a section loads, its tab shows a pulsing bar (TabPendingHint).
 export function CaseTabs({ reference, current, counts }: {
   reference: string;
   current: CaseTab;
@@ -22,7 +24,7 @@ export function CaseTabs({ reference, current, counts }: {
           return (
             <li key={tab} className="shrink-0">
               <Link href={caseTabHref(reference, tab)} aria-current={selected ? "page" : undefined}
-                    className={`flex items-center gap-1.5 border-b-2 px-[7px] py-3 text-[13px] transition-colors sm:gap-2 sm:px-3 sm:text-sm ${selected
+                    className={`relative flex items-center gap-1.5 border-b-2 px-[7px] py-3 text-[13px] transition-colors sm:gap-2 sm:px-3 sm:text-sm ${selected
                       ? "border-accent font-semibold text-ink" : "border-transparent text-ink-soft hover:text-ink"}`}>
                 {CASE_TAB_LABELS[tab]}
                 {count ? (
@@ -30,6 +32,7 @@ export function CaseTabs({ reference, current, counts }: {
                     {count}<span className="sr-only"> pending</span>
                   </span>
                 ) : null}
+                {!selected && <TabPendingHint />}
               </Link>
             </li>
           );
