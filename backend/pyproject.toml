@@ -9,3 +9,6 @@ testpaths = ["tests"]
 pythonpath = ["."]
 # Keep pytest from writing a .pytest_cache directory into the project.
 addopts = "-p no:cacheprovider"
+
+[tool.vercel]
+entrypoint = "itr_intake_server/app.py"
