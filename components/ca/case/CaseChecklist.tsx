@@ -17,7 +17,7 @@ import {
 
 const base = (reference: string) => `/api/ca/cases/${encodeURIComponent(reference)}/checklist`;
 const smallButton =
-  "rounded-lg border border-line bg-white px-3 py-1.5 text-xs font-medium hover:border-ink-faint disabled:opacity-60";
+  "rounded-lg border border-line bg-surface px-3 py-1.5 text-xs font-medium hover:border-ink-faint disabled:opacity-60";
 
 function evidenceText(e: ChecklistEvidence): string {
   if (e.source === "profile") {
@@ -111,7 +111,7 @@ export function CaseChecklist({ reference, items, caseClosed }: {
 }) {
   const { busy, message, run } = useAction(reference);
   return (
-    <section aria-labelledby="checklist" className="mt-8 rounded-2xl border border-line bg-white p-6">
+    <section aria-labelledby="checklist" className="mt-8 rounded-2xl border border-line bg-surface p-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h2 id="checklist" className="font-serif text-xl font-medium">Suggested documents</h2>
         {!caseClosed && (

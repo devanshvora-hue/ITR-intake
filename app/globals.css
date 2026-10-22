@@ -19,6 +19,8 @@
      the colour it replaces, so today's pages render exactly as before; a later
      theme only has to redefine these. */
   --color-surface: #ffffff;
+  --color-control: var(--color-line);
+  --color-on-accent: #ffffff;
   --color-accent: var(--color-teal);
   --color-accent-strong: var(--color-teal-deep);
   --color-accent-bg: var(--color-teal-wash);
@@ -33,8 +35,8 @@
   --color-neutral-fg: var(--color-ink-soft);
   --color-muted-fg: var(--color-ink-faint);
 
-  /* Planned dark CA palette. Defined only; not applied to any page yet.
-     WCAG contrast (checked in tests/ui-foundations.test.ts):
+  /* Dark CA palette, applied through .theme-ca below.
+     WCAG contrast (checked in tests/ui-foundations.test.ts and tests/ca-shell.test.ts):
      - ca-blue is 5.0:1 on ca-midnight but 4.3:1 on ca-surface and 3.5:1 on
        ca-indigo, so small text uses ca-blue-text (4.6:1 or better on all three).
      - Text on a ca-blue fill uses ca-on-blue (5.0:1); white is only 3.6:1.
@@ -65,4 +67,74 @@ body {
 
 ::selection {
   background: var(--color-teal-wash);
+}
+
+/* The CA workspace (app/ca/layout.tsx). Every colour token the CA pages use is
+   redefined for this subtree only, so those pages turn dark without changing
+   their markup, and the client portal and home page keep the light palette.
+   Semantic tokens are set explicitly: a var() inside a custom property is
+   resolved where it is declared (:root), so they would not follow the legacy
+   ones. In this theme teal is the link and accent blue, and teal-deep is the
+   success green it stood for (verified, complete, credits). */
+.theme-ca {
+  color-scheme: dark;
+
+  --color-paper: var(--color-ca-midnight);
+  --color-paper-deep: #252e44;
+  --color-line: var(--color-ca-border);
+  --color-ink: var(--color-ca-text);
+  --color-ink-soft: var(--color-ca-text-soft);
+  --color-ink-faint: #8f99b2;
+  --color-teal: var(--color-ca-blue-text);
+  --color-teal-deep: var(--color-ca-success);
+  --color-teal-wash: #163a31;
+  --color-amber-wash: #3a2f18;
+  --color-amber-ink: var(--color-ca-warning);
+  --color-rose-wash: #3f1f25;
+  --color-rose-ink: #ff9c92;
+
+  --color-surface: var(--color-ca-surface);
+  --color-control: var(--color-ca-border-strong);
+  --color-on-accent: var(--color-ca-on-blue);
+  --color-accent: var(--color-ca-blue);
+  --color-accent-strong: var(--color-ca-blue-text);
+  --color-accent-bg: var(--color-ca-indigo);
+  --color-accent-fg: var(--color-ca-blue-text);
+  --color-success-bg: #163a31;
+  --color-success-fg: var(--color-ca-success);
+  --color-warning-bg: #3a2f18;
+  --color-warning-fg: var(--color-ca-warning);
+  --color-danger-bg: #3f1f25;
+  --color-danger-fg: #ff9c92;
+  --color-neutral-bg: #252e44;
+  --color-neutral-fg: var(--color-ca-text-soft);
+  --color-muted-fg: #8f99b2;
+
+  /* Plex Sans for headings: Fraunces suits the light pages, not the workspace. */
+  --font-serif: var(--font-plex-sans), ui-sans-serif, system-ui, sans-serif;
+}
+
+/* No light band when a CA page is shorter than the window or overscrolls. */
+body:has(.theme-ca) {
+  background: var(--color-ca-midnight);
+}
+
+.theme-ca ::selection {
+  background: var(--color-ca-indigo);
+}
+
+/* A visible focus ring for every control in the workspace (WCAG 2.4.7). */
+.theme-ca :focus-visible {
+  outline: 2px solid var(--color-ca-blue-text);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .theme-ca *,
+  .theme-ca *::before,
+  .theme-ca *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }

@@ -7,7 +7,7 @@ import { WorkbookDownload } from "./WorkbookDownload";
 export function CaseItrSummary({ reference, review }: { reference: string; review: CaseReview | null }) {
   if (review === null) {
     return (
-      <section aria-labelledby="itr" className="mt-8 rounded-2xl border border-line bg-white p-6">
+      <section aria-labelledby="itr" className="mt-8 rounded-2xl border border-line bg-surface p-6">
         <h2 id="itr" className="font-serif text-xl font-medium">ITR summary and workbook</h2>
         <p className="mt-2 text-sm text-ink-soft">Available once a statement review is prepared.</p>
       </section>
@@ -45,7 +45,7 @@ export function CaseItrSummary({ reference, review }: { reference: string; revie
       )}
 
       <div className="grid gap-4 lg:grid-cols-2">
-        <div className="overflow-hidden rounded-2xl border border-line bg-white">
+        <div className="overflow-hidden rounded-2xl border border-line bg-surface">
           <h3 className="border-b border-line px-5 py-3 text-sm font-medium">Key figures for ITR</h3>
           <table className="w-full text-sm">
             <tbody className="divide-y divide-line">
@@ -58,7 +58,7 @@ export function CaseItrSummary({ reference, review }: { reference: string; revie
             </tbody>
           </table>
         </div>
-        <div className="overflow-hidden rounded-2xl border border-line bg-white">
+        <div className="overflow-hidden rounded-2xl border border-line bg-surface">
           <h3 className="border-b border-line px-5 py-3 text-sm font-medium">Totals by category</h3>
           <div className="overflow-x-auto">
             <table className="w-full min-w-[420px] text-sm">

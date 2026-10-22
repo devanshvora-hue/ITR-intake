@@ -6,7 +6,7 @@ import { describe, pagesByWarning, STATUS_LABELS, STATUS_TONES } from "@/lib/sta
 // Results only: no file contents, no download links.
 export function CaStatementsTable({ statements }: { statements: CaStatement[] }) {
   return (
-    <section aria-labelledby="statements" className="mt-10 overflow-hidden rounded-2xl border border-line bg-white">
+    <section aria-labelledby="statements" className="mt-10 overflow-hidden rounded-2xl border border-line bg-surface">
       <div className="border-b border-line px-5 py-4">
         <h2 id="statements" className="font-serif text-lg font-medium">Statement uploads</h2>
         <p className="mt-1 text-sm text-ink-soft">

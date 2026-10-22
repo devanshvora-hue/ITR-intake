@@ -18,7 +18,7 @@ export function tabKeyTarget(key: string, index: number, count: number): number 
 
 const tabClass = (selected: boolean) =>
   `rounded-full border px-3 py-1 text-xs font-medium ${selected
-    ? "border-accent bg-accent text-white" : "border-line bg-surface text-ink-soft hover:border-ink-faint"}`;
+    ? "border-accent bg-accent text-on-accent" : "border-line bg-surface text-ink-soft hover:border-ink-faint"}`;
 
 /**
  * A controlled tab list (WAI-ARIA tabs, automatic activation). Only the selected

@@ -20,7 +20,7 @@ export function LogoutButton() {
       type="button"
       onClick={onClick}
       disabled={busy}
-      className="rounded-lg border border-line bg-white px-4 py-2 text-sm font-medium transition-colors hover:border-ink-faint disabled:opacity-60"
+      className="rounded-lg border border-line bg-surface px-4 py-2 text-sm font-medium transition-colors hover:border-ink-faint disabled:opacity-60"
     >
       {busy ? "Signing out…" : "Sign out"}
     </button>

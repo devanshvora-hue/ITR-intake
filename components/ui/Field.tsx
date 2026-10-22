@@ -31,7 +31,7 @@ export function Field({ id, label, type = "text", autoComplete, required, hint, 
         maxLength={maxLength}
         aria-describedby={describedBy}
         aria-invalid={error ? true : undefined}
-        className="mt-1.5 w-full rounded-lg border border-line bg-white px-3 py-2 text-sm focus:border-teal focus:outline-none"
+        className="mt-1.5 w-full rounded-lg border border-control bg-surface px-3 py-2 text-sm focus:border-teal focus:outline-none"
       />
       {hint && <p id={`${id}-hint`} className="mt-1 text-xs text-ink-faint">{hint}</p>}
       {error && <p id={`${id}-error`} className="mt-1 text-xs text-danger-fg">{error}</p>}

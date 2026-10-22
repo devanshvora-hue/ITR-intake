@@ -65,7 +65,7 @@ export function FirmCodePanel({ initial }: { initial: FirmCodeState }) {
   }
 
   return (
-    <section aria-labelledby="firm-code" className="mt-10 rounded-2xl border border-line bg-white">
+    <section aria-labelledby="firm-code" className="mt-10 rounded-2xl border border-line bg-surface">
       <div className="border-b border-line px-5 py-4">
         <h2 id="firm-code" className="font-serif text-lg font-medium">Firm code</h2>
         <p className="mt-1 text-sm text-ink-soft">

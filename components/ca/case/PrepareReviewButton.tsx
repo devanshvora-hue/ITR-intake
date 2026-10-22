@@ -3,13 +3,9 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { FormMessage } from "@/components/ca/Field";
+import { Button } from "@/components/ui/Button";
 import { postJson } from "@/lib/api-client";
 import { PREPARE_ERRORS } from "@/lib/case-review";
-
-const buttonClass =
-  "rounded-lg bg-teal px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-teal-deep disabled:cursor-not-allowed disabled:opacity-60";
-const secondaryClass =
-  "rounded-lg border border-line bg-white px-4 py-2 text-sm font-medium transition-colors hover:border-ink-faint disabled:opacity-60";
 
 // Asks the API to (re)build the case's review from one stored statement. The
 // server decides the firm from the session; this only names the statement.
@@ -54,25 +50,24 @@ export function PrepareReviewButton({ reference, statementId, replacesReview, is
         <div className="space-y-2 rounded-lg border border-line bg-paper px-3 py-2 text-xs">
           <p>This replaces the current review with one built from this statement.</p>
           <div className="flex gap-2">
-            <button type="button" onClick={run} disabled={busy} className={buttonClass}>Replace review</button>
-            <button type="button" onClick={() => setConfirming(false)} disabled={busy} className={secondaryClass}>
+            <Button type="button" onClick={run} disabled={busy}>Replace review</Button>
+            <Button type="button" variant="secondary" onClick={() => setConfirming(false)} disabled={busy}>
               Cancel
-            </button>
+            </Button>
           </div>
         </div>
       ) : (
-        <button type="button" disabled={busy}
-                onClick={() => (replacesReview && !isCurrent ? setConfirming(true) : run())}
-                className={isCurrent ? secondaryClass : buttonClass}>
+        <Button type="button" variant={isCurrent ? "secondary" : "primary"} disabled={busy}
+                onClick={() => (replacesReview && !isCurrent ? setConfirming(true) : run())}>
           {busy ? "Preparing…" : label}
-        </button>
+        </Button>
       )}
       {busy && <p className="text-xs text-ink-soft" role="status">Reading and classifying the statement…</p>}
       {error && (
         <div className="space-y-2">
           <FormMessage tone="error">{error.message}</FormMessage>
           {error.retry && (
-            <button type="button" onClick={run} disabled={busy} className={secondaryClass}>Try again</button>
+            <Button type="button" variant="secondary" onClick={run} disabled={busy}>Try again</Button>
           )}
         </div>
       )}

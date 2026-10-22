@@ -32,8 +32,10 @@ function el<P extends object>(type: FunctionComponent<P>, props: Omit<P, "childr
 // --- tokens ---------------------------------------------------------------------------------------
 
 const css = readFileSync(new URL("../app/globals.css", import.meta.url), "utf8");
+// The light (default) tokens: the @theme block only, not the scoped .theme-ca overrides.
+const themeBlock = /@theme \{([\s\S]*?)\n\}/.exec(css)![1];
 const theme = Object.fromEntries(
-  [...css.matchAll(/--color-([a-z0-9-]+):\s*([^;]+);/g)].map(([, name, value]) => [name, value.trim().toLowerCase()]));
+  [...themeBlock.matchAll(/--color-([a-z0-9-]+):\s*([^;]+);/g)].map(([, name, value]) => [name, value.trim().toLowerCase()]));
 theme.white = "#ffffff"; // Tailwind's own white
 
 /** The final value of a colour token, following var(--color-…) references. */

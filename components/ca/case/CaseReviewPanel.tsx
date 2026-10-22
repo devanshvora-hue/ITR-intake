@@ -19,7 +19,7 @@ export function CaseReviewPanel({ reference, review, caseClosed }: { reference: 
   caseClosed: boolean }) {
   if (review === null) {
     return (
-      <section className="mt-8 rounded-2xl border border-dashed border-line bg-white px-5 py-10 text-center">
+      <section className="mt-8 rounded-2xl border border-dashed border-line bg-surface px-5 py-10 text-center">
         <p className="font-medium">No review prepared yet.</p>
         <p className="mx-auto mt-2 max-w-md text-sm text-ink-soft">
           Choose a statement above and select Prepare review to read and classify its transactions.
@@ -53,7 +53,7 @@ export function CaseReviewPanel({ reference, review, caseClosed }: { reference: 
               </dl>
             )}
           </div>
-          <div className="rounded-2xl border border-line bg-white p-5">
+          <div className="rounded-2xl border border-line bg-surface p-5">
             <p className="text-xs font-medium uppercase tracking-wide text-ink-soft">Extraction</p>
             <p className={`mt-1 font-serif text-2xl font-medium ${review.verified ? "text-teal-deep" : "text-amber-ink"}`}>
               {review.verified ? "Verified" : "Unverified"}

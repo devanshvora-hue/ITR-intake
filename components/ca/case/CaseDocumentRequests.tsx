@@ -58,14 +58,14 @@ function CreateForm({ reference, caseClosed }: { reference: string; caseClosed: 
         <label htmlFor="dr-label" className="block text-sm">Document</label>
         <input id="dr-label" name="label" required minLength={2} maxLength={120} disabled={caseClosed || busy}
                placeholder="e.g. Form 16 from employer"
-               className="mt-1 w-full rounded-lg border border-line bg-white px-3 py-2 text-sm focus:border-teal focus:outline-none" />
+               className="mt-1 w-full rounded-lg border border-control bg-surface px-3 py-2 text-sm focus:border-teal focus:outline-none" />
       </div>
       <div>
         <label htmlFor="dr-description" className="block text-sm">
           Explanation for the client <span className="text-ink-faint">(optional)</span>
         </label>
         <textarea id="dr-description" name="description" rows={2} maxLength={500} disabled={caseClosed || busy}
-                  className="mt-1 w-full rounded-lg border border-line bg-white px-3 py-2 text-sm focus:border-teal focus:outline-none" />
+                  className="mt-1 w-full rounded-lg border border-control bg-surface px-3 py-2 text-sm focus:border-teal focus:outline-none" />
       </div>
       <fieldset className="flex gap-4 text-sm" disabled={caseClosed || busy}>
         <legend className="sr-only">Required or optional</legend>
@@ -127,7 +127,7 @@ function FileRow({ reference, file }: { reference: string; file: RequestFile }) 
         </span>
       </span>
       <button type="button" onClick={download} disabled={busy || !file.id}
-              className="rounded-lg border border-line bg-white px-3 py-1 text-xs font-medium hover:border-ink-faint disabled:opacity-60">
+              className="rounded-lg border border-line bg-surface px-3 py-1 text-xs font-medium hover:border-ink-faint disabled:opacity-60">
         {busy ? "Downloading…" : "Download"}
       </button>
       {error && <span className="w-full text-xs text-rose-ink" role="alert">{error}</span>}
@@ -187,7 +187,7 @@ function RequestItem({ reference, request, caseClosed }: {
       )}
       <div className="mt-3 flex items-center gap-3">
         <button type="button" disabled={busy || caseClosed} onClick={() => change(waived ? "reopen" : "waive")}
-                className="rounded-lg border border-line bg-white px-3 py-1.5 text-xs font-medium hover:border-ink-faint disabled:opacity-60">
+                className="rounded-lg border border-line bg-surface px-3 py-1.5 text-xs font-medium hover:border-ink-faint disabled:opacity-60">
           {busy ? "Saving…" : waived ? "Reopen request" : "Waive request"}
         </button>
         {!waived && request.files.length > 0 && (
@@ -210,7 +210,7 @@ export function CaseDocumentRequests({ reference, requests, caseClosed }: {
     ["Waived", requests.filter((r) => r.status === "waived")],
   ];
   return (
-    <section aria-labelledby="doc-requests" className="mt-8 rounded-2xl border border-line bg-white p-6">
+    <section aria-labelledby="doc-requests" className="mt-8 rounded-2xl border border-line bg-surface p-6">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <h2 id="doc-requests" className="font-serif text-xl font-medium">Requested documents</h2>
         <p className="text-xs text-ink-soft">

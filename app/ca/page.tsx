@@ -50,7 +50,7 @@ export default async function CaDashboard() {
           { label: "Need CA review", value: cases.filter((c) => c.status === "ca_review_required").length },
           { label: "Need attention", value: cases.filter((c) => needsAttention(c.status, c.readiness)).length },
         ].map((s) => (
-          <div key={s.label} className="rounded-xl border border-line bg-white p-5">
+          <div key={s.label} className="rounded-xl border border-line bg-surface p-5">
             <p className="text-sm text-ink-soft">{s.label}</p>
             <p className="mt-2 font-serif text-3xl font-medium tabular-nums">{s.value}</p>
           </div>
@@ -59,7 +59,7 @@ export default async function CaDashboard() {
 
       {firmCode && <FirmCodePanel initial={firmCode} />}
 
-      <section aria-labelledby="cases" className="mt-10 overflow-hidden rounded-2xl border border-line bg-white">
+      <section aria-labelledby="cases" className="mt-10 overflow-hidden rounded-2xl border border-line bg-surface">
         <div className="border-b border-line px-5 py-4">
           <h2 id="cases" className="font-serif text-lg font-medium">Client cases</h2>
           <p className="mt-1 text-xs text-ink-faint">

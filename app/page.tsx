@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { SiteChrome } from "@/components/SiteChrome";
 
 const steps = [
   {
@@ -24,6 +25,14 @@ const steps = [
 ];
 
 export default function Home() {
+  return (
+    <SiteChrome>
+      <HomeContent />
+    </SiteChrome>
+  );
+}
+
+function HomeContent() {
   return (
     <div className="mx-auto max-w-6xl px-4 sm:px-6">
       <section className="grid gap-10 py-14 md:grid-cols-[1.4fr_1fr] md:py-20">

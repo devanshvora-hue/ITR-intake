@@ -77,22 +77,22 @@ function RowEditor({ reference, row, onDone }: { reference: string; row: ReviewR
     <div className="mt-2 space-y-2 rounded-lg border border-line bg-paper p-3">
       <label className="block text-xs font-medium" htmlFor={`cat-${row.row_number}`}>Category</label>
       <select id={`cat-${row.row_number}`} value={category} onChange={(e) => setCategory(e.target.value)} disabled={busy}
-              className="w-full rounded-lg border border-line bg-white px-2 py-1.5 text-sm">
+              className="w-full rounded-lg border border-control bg-surface px-2 py-1.5 text-sm">
         {CATEGORY_OPTIONS.map((c) => <option key={c} value={c}>{c}</option>)}
       </select>
       <label className="block text-xs font-medium" htmlFor={`note-${row.row_number}`}>
         Note <span className="font-normal text-ink-faint">(optional, kept with the decision)</span>
       </label>
       <input id={`note-${row.row_number}`} value={note} onChange={(e) => setNote(e.target.value)} maxLength={300} disabled={busy}
-             className="w-full rounded-lg border border-line bg-white px-2 py-1.5 text-sm" />
+             className="w-full rounded-lg border border-control bg-surface px-2 py-1.5 text-sm" />
       <div className="flex flex-wrap gap-2">
         <button type="button" disabled={busy} onClick={() => send(category)}
-                className="rounded-lg bg-teal px-3 py-1.5 text-xs font-medium text-white disabled:opacity-60">
+                className="rounded-lg bg-accent px-3 py-1.5 text-xs font-medium text-on-accent disabled:opacity-60">
           {busy ? "Saving…" : category === row.classifier_category ? "Confirm category" : "Save category"}
         </button>
         {row.decision && (
           <button type="button" disabled={busy} onClick={() => send(null)}
-                  className="rounded-lg border border-line bg-white px-3 py-1.5 text-xs font-medium disabled:opacity-60">
+                  className="rounded-lg border border-line bg-surface px-3 py-1.5 text-xs font-medium disabled:opacity-60">
             Undo my decision
           </button>
         )}
@@ -185,17 +185,17 @@ export function ReviewTable({ reference, review, caseClosed }: { reference: stri
           {FILTERS.map(([key, label]) => (
             <button key={key} type="button" role="tab" aria-selected={filter === key} onClick={() => setFilter(key)}
                     className={`rounded-full border px-3 py-1 text-xs font-medium ${filter === key
-                      ? "border-teal bg-teal text-white" : "border-line bg-white text-ink-soft hover:border-ink-faint"}`}>
+                      ? "border-accent bg-accent text-on-accent" : "border-line bg-surface text-ink-soft hover:border-ink-faint"}`}>
               {label} <span className="tabular-nums opacity-80">{counts[key]}</span>
             </button>
           ))}
         </div>
         <input type="search" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search narration or payee"
                aria-label="Search narration or payee"
-               className="w-full rounded-lg border border-line bg-white px-3 py-1.5 text-sm sm:w-64" />
+               className="w-full rounded-lg border border-control bg-surface px-3 py-1.5 text-sm sm:w-64" />
       </div>
 
-      <div className="overflow-hidden rounded-2xl border border-line bg-white">
+      <div className="overflow-hidden rounded-2xl border border-line bg-surface">
         {shown.length === 0 ? (
           <p className="px-5 py-10 text-center text-sm text-ink-soft">
             {filter === "needs" && !query ? "Nothing needs review. Every transaction has a category." : "No transactions match."}

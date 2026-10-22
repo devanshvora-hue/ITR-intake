@@ -1,7 +1,5 @@
 import type { Metadata } from "next";
 import { Fraunces, IBM_Plex_Mono, IBM_Plex_Sans } from "next/font/google";
-import { SiteHeader } from "@/components/SiteHeader";
-import { SiteFooter } from "@/components/SiteFooter";
 import "./globals.css";
 
 const plexSans = IBM_Plex_Sans({
@@ -36,11 +34,9 @@ export default function RootLayout({
       lang="en-IN"
       className={`${plexSans.variable} ${plexMono.variable} ${fraunces.variable}`}
     >
-      <body className="flex min-h-screen flex-col font-sans antialiased">
-        <SiteHeader />
-        <main className="flex-1">{children}</main>
-        <SiteFooter />
-      </body>
+      {/* Each area brings its own frame: the light SiteChrome (home, client
+          portal, not found) or the dark CaShell (app/ca/layout.tsx). */}
+      <body className="flex min-h-screen flex-col font-sans antialiased">{children}</body>
     </html>
   );
 }

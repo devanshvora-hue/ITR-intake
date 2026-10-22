@@ -13,7 +13,7 @@ export function CaseStatements({ reference, statements, review, caseClosed }: {
   caseClosed: boolean;
 }) {
   return (
-    <section aria-labelledby="statements" className="mt-8 overflow-hidden rounded-2xl border border-line bg-white">
+    <section aria-labelledby="statements" className="mt-8 overflow-hidden rounded-2xl border border-line bg-surface">
       <div className="border-b border-line px-5 py-4">
         <h2 id="statements" className="font-serif text-lg font-medium">Uploaded statements</h2>
         <p className="mt-1 text-sm text-ink-soft">

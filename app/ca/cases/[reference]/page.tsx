@@ -45,7 +45,7 @@ function SummaryStrip({ detail }: { detail: CaseDetail }) {
       r.documents.required_outstanding ? "text-amber-ink" : undefined],
   ];
   return (
-    <div className="mt-6 rounded-2xl border border-line bg-white p-5">
+    <div className="mt-6 rounded-2xl border border-line bg-surface p-5">
       <dl className="grid gap-4 text-sm sm:grid-cols-2 lg:grid-cols-4">
         {items.map(([label, value, tone]) => (
           <div key={label}>
@@ -107,7 +107,7 @@ export default async function CaCasePage({ params }: { params: Promise<{ referen
 
       <SummaryStrip detail={result.detail} />
 
-      <details className="mt-4 rounded-2xl border border-line bg-white p-5 text-sm">
+      <details className="mt-4 rounded-2xl border border-line bg-surface p-5 text-sm">
         <summary className="cursor-pointer font-medium">
           Client intake: {intake.steps.filter((s) => s.done).length} of {intake.steps.length} steps
           {intake.complete ? " complete" : ""} · details {profile.complete ? "complete" : "incomplete"}
