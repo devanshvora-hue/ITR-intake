@@ -118,7 +118,7 @@ async function insertUpload(db: Db, firmId: string, caseId: string, u: UploadIns
     `INSERT INTO statement_uploads (case_id, firm_id, document_id, file_type, display_name, size_bytes, status,
        reasons_json, page_warnings_json, rejected_rows_json, duplicate_rows_json, pages_total, rows_extracted,
        rows_rejected, rows_duplicate, rows_summary, period_start, period_end, error_code, processed_at)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8::jsonb, $9::jsonb, $10::jsonb, $11::jsonb, $12, $13, $14, $15, $16,
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8::text::jsonb, $9::text::jsonb, $10::text::jsonb, $11::text::jsonb, $12, $13, $14, $15, $16,
              $17::date, $18::date, $19, CASE WHEN $7 = 'processing' THEN NULL ELSE now() END)
      RETURNING *`,
     [caseId, firmId, u.documentId ?? null, u.fileType, u.displayName, u.size, u.status,

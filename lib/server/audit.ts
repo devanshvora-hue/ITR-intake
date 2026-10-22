@@ -17,7 +17,7 @@ export type AuditEvent = {
 export async function recordAudit(db: Db, event: AuditEvent): Promise<void> {
   await guarded(() => db.query(
     `INSERT INTO audit_events (firm_id, case_id, actor_kind, actor_id, action, details_json, ip_hash)
-     VALUES ($1, $2, $3, $4, $5, $6::jsonb, $7)`,
+     VALUES ($1, $2, $3, $4, $5, $6::text::jsonb, $7)`,
     [event.firmId ?? null, event.caseId ?? null, event.actorKind, event.actorId ?? null, event.action,
       JSON.stringify(event.details ?? {}), event.ipHash ?? null]), "audit_event");
 }

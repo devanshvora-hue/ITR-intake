@@ -233,3 +233,22 @@ describe("GET /api/health", () => {
 });
 
 export type { Config };
+
+// postgres.js serialises a parameter by the type Postgres reports for it; a
+// "$n::jsonb" parameter would be JSON-encoded a second time (a JSON string, not
+// an object). JSON text must be sent as text and cast in SQL: "$n::text::jsonb".
+describe("SQL parameters", () => {
+  it("never declare a parameter as jsonb directly", async () => {
+    const { readdirSync, readFileSync, statSync } = await import("node:fs");
+    const { join } = await import("node:path");
+    const files: string[] = [];
+    const walk = (dir: string) => readdirSync(dir).forEach((f) => {
+      const p = join(dir, f);
+      if (statSync(p).isDirectory()) walk(p);
+      else if (p.endsWith(".ts")) files.push(p);
+    });
+    walk("lib");
+    walk("app");
+    expect(files.filter((f) => /\$\d+::jsonb/.test(readFileSync(f, "utf8")))).toEqual([]);
+  });
+});

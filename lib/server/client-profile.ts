@@ -72,7 +72,7 @@ export async function saveProfile(db: Db, firmId: string, caseId: string, values
     const [current] = await db.query<CaseRow>("SELECT * FROM cases WHERE id = $1 AND firm_id = $2", [caseId, firmId]);
     const profile = { ...(current.profile_json ?? {}), ...values };
     const [updated] = await db.query<CaseRow>(
-      `UPDATE cases SET profile_json = $3::jsonb, version = version + 1, updated_at = now()
+      `UPDATE cases SET profile_json = $3::text::jsonb, version = version + 1, updated_at = now()
        WHERE id = $1 AND firm_id = $2 AND version = $4 RETURNING *`,
       [caseId, firmId, JSON.stringify(profile), current.version]);
     if (updated) return updated;
