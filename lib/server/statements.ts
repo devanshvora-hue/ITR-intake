@@ -12,6 +12,7 @@
 // are stored or logged; never file contents or transactions.
 
 import { recordAudit } from "./audit";
+import { syncCaseStatus } from "./case-status";
 import type { CaseRow } from "./client-auth";
 import type { Db } from "./db";
 import { Conflict, guarded } from "./errors";
@@ -201,6 +202,7 @@ export async function handleStatementUpload(db: Db, store: FileStore, input: {
          WHERE id = $1 AND firm_id = $2 AND status = 'draft'`, [caseId, firmId]);
       await recordAudit(tx, { actorKind: "client", actorId: input.actorId, firmId, caseId, action: "statement.uploaded",
         details: { upload_id: row.id, status } });
+      await syncCaseStatus(tx, firmId, caseId); // a draft with outstanding requests becomes "documents_pending"
       return row;
     }), "statement_upload");
     console.info("statement stored", fileType, status, upload.rows_extracted, upload.rows_rejected);

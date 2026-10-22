@@ -22,9 +22,10 @@ export type DocumentRequest = {
   files: RequestFile[];
 };
 
-// Server limits (document_requests.py). Shown to the client for guidance; the
-// server remains the authority and its answer is always what is displayed.
-export const MAX_DOCUMENT_BYTES = 10 * 1024 * 1024;
+// Server limits (also imported by lib/server/documents.ts). Shown to the client
+// for guidance; the server remains the authority. Vercel's request body limit
+// is about 4.5 MB, so one file is at most 4 MB.
+export const MAX_DOCUMENT_BYTES = 4 * 1024 * 1024;
 export const MAX_FILES_PER_REQUEST = 5;
 export const DOCUMENT_ACCEPT = ".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png";
 
@@ -45,7 +46,7 @@ export const DOCUMENT_ERRORS: Record<string, string> = {
   empty_file: "The file is empty.",
   unsupported_file_type: "Only PDF, JPEG and PNG files are accepted.",
   type_mismatch: "The file does not match its type. Please upload a real PDF, JPEG or PNG.",
-  file_too_large: "The file is larger than 10 MB.",
+  file_too_large: "The file is larger than 4 MB.",
   truncated_file: "The file looks incomplete. Please download it again and retry.",
   case_closed: "This case is closed.",
   request_waived: "Your CA has waived this request, so no upload is needed.",

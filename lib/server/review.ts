@@ -11,6 +11,7 @@
 // as unverified. Nothing here logs narrations, amounts or file names.
 
 import { recordAudit } from "./audit";
+import { syncCaseStatus } from "./case-status";
 import type { CaseRow } from "./client-auth";
 import type { Db } from "./db";
 import { Conflict } from "./errors";
@@ -25,7 +26,7 @@ import { containsImages, ExtractionFailed, ExtractorBusy, extractPdfPages } from
 import { formatPaise, parseAmount, parseDate, validateRows, type RawTransaction } from "../statement/validation";
 
 export const CLASSIFIER_VERSION = "itr_intake.classifier/stage5.8";
-const PREPARABLE_CASE_STATUSES = ["statement_uploaded", "ca_review_required", "review_ready"];
+const PREPARABLE_CASE_STATUSES = ["statement_uploaded", "ca_review_required", "documents_pending", "review_ready"];
 
 export class ReviewRefused extends Error {
   constructor(readonly code: string) {
@@ -155,6 +156,7 @@ export async function prepareReview(db: Db, store: FileStore, input: {
     if (!updated.length) throw new Conflict("stale_version");
     await recordAudit(tx, { actorKind: "ca", actorId: input.actorId, firmId, caseId: caseRow.id, action: "case.review_prepared",
       details: { upload_id: upload.id, rows: rows.length } });
+    await syncCaseStatus(tx, firmId, caseRow.id); // outstanding document requests keep it "documents_pending"
   });
 }
 
