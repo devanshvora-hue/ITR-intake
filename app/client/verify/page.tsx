@@ -6,7 +6,8 @@ export const metadata: Metadata = { title: "Continue · ITR Intake", referrer: "
 
 export default function ClientVerifyPage() {
   return (
-    <AuthCard eyebrow="Client portal" title="Confirming your email">
+    <AuthCard eyebrow="Client portal" title="Confirming your email"
+              intro="This page checks the sign-in link from your email and then opens your intake.">
       <ClientVerify />
     </AuthCard>
   );

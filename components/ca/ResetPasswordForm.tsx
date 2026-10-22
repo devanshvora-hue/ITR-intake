@@ -2,8 +2,11 @@
 
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
+import { Button, buttonClasses } from "@/components/ui/Button";
 import { postJson } from "@/lib/api-client";
-import { Field, FormMessage, primaryButton } from "./Field";
+import { Field, FormMessage } from "./Field";
+
+const nextStep = `${buttonClasses({ size: "lg" })} block w-full text-center`;
 
 const PASSWORD_MESSAGES: Record<string, string> = {
   password_too_short: "Use at least 12 characters for your password.",
@@ -61,7 +64,7 @@ export function ResetPasswordForm() {
     return (
       <div className="space-y-4">
         <FormMessage tone="error">This reset link is missing its code. Request a new link.</FormMessage>
-        <Link href="/ca/forgot-password" className="inline-block text-sm font-medium text-teal underline">
+        <Link href="/ca/forgot-password" className={nextStep}>
           Request a new reset link
         </Link>
       </div>
@@ -70,23 +73,23 @@ export function ResetPasswordForm() {
   if (phase === "done")
     return (
       <div className="space-y-4">
-        <FormMessage tone="info">Your password has been changed and you have been signed out everywhere.</FormMessage>
-        <Link href="/ca/login" className="inline-block text-sm font-medium text-teal underline">
+        <FormMessage tone="success">Your password has been changed and you have been signed out everywhere.</FormMessage>
+        <Link href="/ca/login" className={nextStep}>
           Go to sign in
         </Link>
       </div>
     );
 
   return (
-    <form onSubmit={onSubmit} className="space-y-4">
+    <form method="post" onSubmit={onSubmit} className="space-y-5">
       <Field id="new_password" label="New password" type="password" autoComplete="new-password" required
              minLength={12} maxLength={256} hint="At least 12 characters." />
       <Field id="confirm_password" label="Confirm new password" type="password" autoComplete="new-password" required
              minLength={12} maxLength={256} />
       {error && <FormMessage tone="error">{error}</FormMessage>}
-      <button type="submit" disabled={busy} className={primaryButton}>
+      <Button type="submit" size="lg" loading={busy} className="w-full">
         {busy ? "Saving…" : "Set new password"}
-      </button>
+      </Button>
     </form>
   );
 }

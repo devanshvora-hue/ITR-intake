@@ -1,7 +1,8 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { AuthCard } from "@/components/ca/AuthCard";
+import { AuthCard, authLink } from "@/components/ca/AuthCard";
+import { FormMessage } from "@/components/ui/FormMessage";
 import { LoginForm } from "@/components/ca/LoginForm";
 import { getCaSession } from "@/lib/ca-session";
 
@@ -18,22 +19,18 @@ export default async function CaLoginPage() {
       title="Sign in"
       intro="For registered CA firm accounts. Clients do not sign in here."
       footer={
-        <>
+        <p>
           New firm?{" "}
-          <Link href="/ca/register" className="font-medium text-teal underline">
+          <Link href="/ca/register" className={authLink}>
             Register a CA account
           </Link>
-          {" · "}
-          <Link href="/ca/forgot-password" className="font-medium text-teal underline">
-            Forgot password?
-          </Link>
-        </>
+        </p>
       }
     >
       {session.state === "unavailable" && (
-        <p className="mb-4 rounded-lg bg-rose-wash px-3 py-2 text-sm text-rose-ink">
-          The ITR Intake server is not reachable. Start it, then reload this page.
-        </p>
+        <div className="mb-5">
+          <FormMessage tone="error">The ITR Intake server is not reachable. Start it, then reload this page.</FormMessage>
+        </div>
       )}
       <LoginForm />
     </AuthCard>

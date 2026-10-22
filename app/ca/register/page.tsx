@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { AuthCard } from "@/components/ca/AuthCard";
+import { AuthCard, authLink } from "@/components/ca/AuthCard";
 import { RegisterForm } from "@/components/ca/RegisterForm";
 
 export const metadata: Metadata = { title: "Register a CA account · ITR Intake" };
@@ -8,6 +8,7 @@ export const metadata: Metadata = { title: "Register a CA account · ITR Intake"
 export default function CaRegisterPage() {
   return (
     <AuthCard
+      wide
       eyebrow="CA onboarding"
       title="Register your firm"
       intro={
@@ -17,12 +18,12 @@ export default function CaRegisterPage() {
         </>
       }
       footer={
-        <>
+        <p>
           Already registered?{" "}
-          <Link href="/ca/login" className="font-medium text-teal underline">
+          <Link href="/ca/login" className={authLink}>
             Sign in
           </Link>
-        </>
+        </p>
       }
     >
       <RegisterForm />

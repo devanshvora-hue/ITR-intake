@@ -1,9 +1,12 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { Button } from "@/components/ui/Button";
 import { postJson } from "@/lib/api-client";
-import { Field, FormMessage, primaryButton } from "./Field";
+import { authLink } from "./AuthCard";
+import { Field, FormMessage } from "./Field";
 
 export function LoginForm() {
   const router = useRouter();
@@ -29,13 +32,18 @@ export function LoginForm() {
   }
 
   return (
-    <form onSubmit={onSubmit} className="space-y-4">
+    <form method="post" onSubmit={onSubmit} className="space-y-5">
       <Field id="email" label="Email" type="email" autoComplete="username" required maxLength={254} />
-      <Field id="password" label="Password" type="password" autoComplete="current-password" required maxLength={256} />
+      <div className="space-y-2">
+        <Field id="password" label="Password" type="password" autoComplete="current-password" required maxLength={256} />
+        <p className="text-right text-xs">
+          <Link href="/ca/forgot-password" className={authLink}>Forgot password?</Link>
+        </p>
+      </div>
       {error && <FormMessage tone="error">{error}</FormMessage>}
-      <button type="submit" disabled={busy} className={primaryButton}>
+      <Button type="submit" size="lg" loading={busy} className="w-full">
         {busy ? "Signing in…" : "Sign in"}
-      </button>
+      </Button>
     </form>
   );
 }

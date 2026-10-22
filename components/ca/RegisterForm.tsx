@@ -3,7 +3,8 @@
 import Link from "next/link";
 import { useState } from "react";
 import { postJson } from "@/lib/api-client";
-import { Field, FormMessage, primaryButton } from "./Field";
+import { Button, buttonClasses } from "@/components/ui/Button";
+import { Field, FormMessage } from "./Field";
 
 const PASSWORD_MESSAGES: Record<string, string> = {
   password_too_short: "Use at least 12 characters for your password.",
@@ -13,6 +14,8 @@ const PASSWORD_MESSAGES: Record<string, string> = {
   email_taken: "An account with this email address already exists. Sign in instead.",
   registration_number_taken: "A firm with this registration number is already registered.",
 };
+
+const legend = "mb-4 font-mono text-[11px] uppercase tracking-[0.16em] text-ink-faint";
 
 export function RegisterForm() {
   const [busy, setBusy] = useState(false);
@@ -51,11 +54,11 @@ export function RegisterForm() {
 
   if (done) {
     return (
-      <div className="space-y-4">
-        <FormMessage tone="info">
+      <div className="space-y-5">
+        <FormMessage tone="success">
           Your firm is registered. Your account is ready. You can now access your CA dashboard.
         </FormMessage>
-        <Link href="/ca" className={`${primaryButton} block text-center`}>
+        <Link href="/ca" className={`${buttonClasses({ size: "lg" })} block w-full text-center`}>
           Continue to dashboard
         </Link>
       </div>
@@ -63,20 +66,29 @@ export function RegisterForm() {
   }
 
   return (
-    <form onSubmit={onSubmit} className="space-y-4" noValidate={false}>
-      <Field id="full_name" label="Full name" autoComplete="name" required maxLength={200} />
-      <Field id="email" label="Professional email" type="email" autoComplete="email" required maxLength={254} />
-      <Field id="password" label="Password" type="password" autoComplete="new-password" required minLength={12}
-             maxLength={256} hint="At least 12 characters." />
-      <Field id="firm_name" label="Firm name" autoComplete="organization" required maxLength={200} />
-      <Field id="contact_phone" label="Contact phone" type="tel" autoComplete="tel" maxLength={40} />
-      <Field id="contact_address" label="Contact address" autoComplete="street-address" maxLength={500} />
-      <Field id="registration_number" label="Firm or membership registration number" maxLength={64}
-             hint="Self-declared. It is recorded with your firm and is not verified automatically." />
+    <form method="post" onSubmit={onSubmit} className="space-y-7" noValidate={false}>
+      <fieldset className="space-y-4">
+        <legend className={legend}>Your account</legend>
+        <Field id="full_name" label="Full name" autoComplete="name" required maxLength={200} />
+        <Field id="email" label="Professional email" type="email" autoComplete="email" required maxLength={254} />
+        <Field id="password" label="Password" type="password" autoComplete="new-password" required minLength={12}
+               maxLength={256} hint="At least 12 characters." />
+      </fieldset>
+      <hr className="border-line" />
+      <fieldset className="space-y-4">
+        <legend className={legend}>Your firm</legend>
+        <Field id="firm_name" label="Firm name" autoComplete="organization" required maxLength={200} />
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Field id="contact_phone" label="Contact phone" type="tel" autoComplete="tel" maxLength={40} />
+          <Field id="registration_number" label="Registration number" maxLength={64}
+                 hint="Firm or membership number. Self-declared; recorded with your firm, not verified automatically." />
+        </div>
+        <Field id="contact_address" label="Contact address" autoComplete="street-address" maxLength={500} />
+      </fieldset>
       {error && <FormMessage tone="error">{error}</FormMessage>}
-      <button type="submit" disabled={busy} className={primaryButton}>
+      <Button type="submit" size="lg" loading={busy} className="w-full">
         {busy ? "Creating account…" : "Create account"}
-      </button>
+      </Button>
     </form>
   );
 }

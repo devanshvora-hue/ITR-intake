@@ -1,9 +1,10 @@
 "use client";
 
 import { useState } from "react";
+import { Button } from "@/components/ui/Button";
 import { postJson } from "@/lib/api-client";
 import { DevEmailNotice } from "./DevEmailNotice";
-import { Field, FormMessage, primaryButton } from "./Field";
+import { Field, FormMessage } from "./Field";
 
 type Done = { delivery: string; outboxUrl?: string };
 
@@ -46,12 +47,12 @@ export function ForgotPasswordForm() {
   }
 
   return (
-    <form onSubmit={onSubmit} className="space-y-4">
+    <form method="post" onSubmit={onSubmit} className="space-y-5">
       <Field id="email" label="Email" type="email" autoComplete="username" required maxLength={254} />
       {error && <FormMessage tone="error">{error}</FormMessage>}
-      <button type="submit" disabled={busy} className={primaryButton}>
+      <Button type="submit" size="lg" loading={busy} className="w-full">
         {busy ? "Sending…" : "Send reset link"}
-      </button>
+      </Button>
     </form>
   );
 }
