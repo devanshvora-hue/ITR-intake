@@ -12,7 +12,10 @@ export const GET = apiRoute(async () => {
   try {
     getConfig();
   } catch (error) {
-    if (error instanceof ConfigError) return jsonError(503, "not_configured", "The server is not configured yet.");
+    // The message names the variable that is missing or malformed, never its value.
+    if (error instanceof ConfigError) {
+      return jsonError(503, "not_configured", "The server is not configured yet.", { detail: error.message });
+    }
     throw error;
   }
   let version: number | null = null;

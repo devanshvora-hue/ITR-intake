@@ -52,8 +52,9 @@ export class HttpError extends Error {
   }
 }
 
-export function originAllowed(request: Request, config: Config = getConfig()): boolean {
+export function originAllowed(request: Request, configOverride?: Config): boolean {
   if (SAFE_METHODS.has(request.method)) return true;
+  const config = configOverride ?? getConfig();
   const origin = request.headers.get("origin");
   return origin !== null && config.allowedOrigins.includes(origin) && request.headers.get(CSRF_HEADER) === "1";
 }
