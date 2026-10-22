@@ -15,15 +15,21 @@ import { POST as uploadRoute } from "@/app/api/client/cases/[reference]/statemen
 import { POST as start } from "@/app/api/client/start/route";
 import { CaseItrSummary } from "@/components/ca/case/CaseItrSummary";
 import { CaseReviewPanel } from "@/components/ca/case/CaseReviewPanel";
-import { CaseTaxReconciliation } from "@/components/ca/case/CaseTaxReconciliation";
-import { POST as uploadReport } from "@/app/api/ca/cases/[reference]/tax-reports/route";
 import { formatInr } from "@/lib/money";
 import { financialYearOptions } from "@/lib/server/client-auth";
 import { MemoryStore, setFileStoreForTests } from "@/lib/server/storage";
 import { onboardCa } from "./helpers/ca";
 import { Client, setupTestServer } from "./helpers/http";
 
-vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh() {}, replace() {}, push() {} }) }));
+const holder: { detail: unknown } = { detail: null };
+vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh() {}, replace() {}, push() {} }), redirect() {} }));
+vi.mock("next/link", async () => {
+  const React = await import("react");
+  return { default: ({ href, children, ...rest }: { href: string; children: unknown }) =>
+    React.createElement("a", { href, ...rest }, children as never) };
+});
+// The case page asks the API for the case; here it gets the detail produced by the real route.
+vi.mock("@/lib/ca-case", () => ({ getCaCase: async () => ({ state: "found", detail: holder.detail }) }));
 
 setupTestServer();
 beforeEach(() => setFileStoreForTests(new MemoryStore()));
@@ -64,6 +70,9 @@ describe("CA case review rendering", () => {
     const panel = renderToStaticMarkup(createElement(CaseReviewPanel, { reference, review, caseClosed: false }));
     expect(panel).toContain("Balance reconciliation");
     expect(panel).toContain(">PASS<");
+    expect(review.classifier_version).toBe("itr_intake.classifier/v4");
+    expect(panel).toContain("rules v4");
+    expect(panel).not.toContain("stage5.8");
     expect(panel).toContain("₹1,00,000.00"); // opening, Indian grouping
     // Filter tabs with counts; the review queue is selected by default.
     expect(panel).toMatch(/aria-selected="true"[^>]*>Needs review <span[^>]*>2<\/span>/);
@@ -84,20 +93,16 @@ describe("CA case review rendering", () => {
     expect(summary).toContain("Large unexplained credits");
     expect(summary).toContain("Download");
 
-    // The AIS / 26AS section, from a real upload.
-    const ais = new TextEncoder().encode([
-      "Information Category,Information Source,Date of Payment/Credit,Amount Paid/Credited",
-      "Salary (Section 192),DEMO SYSTEMS PVT LTD,02-04-2025,\"85,000.00\"",
-      "Rent received,SYNTH TENANT,15-04-2025,\"25,000.00\"",
-    ].join("\n"));
-    expect((await ca.call(uploadReport, { method: "POST", path: "/api/x?kind=ais", params: { reference }, rawBody: ais,
-      headers: { "content-type": "text/csv", "x-upload-filename": "ais.csv" } })).status).toBe(201);
-    const { tax_reconciliation: view } = await (await ca.get(detailRoute, { params: { reference } })).json();
-    const tax = renderToStaticMarkup(createElement(CaseTaxReconciliation, { reference, view, caseClosed: false }));
-    expect(tax).toContain("AIS / TIS / Form 26AS reconciliation");
-    expect(tax).toContain("1 to resolve");
-    expect(tax).toContain("Not in bank statement");
-    expect(tax).toContain("₹25,000.00");
-    expect(tax).toContain("Upload and reconcile");
+    expect(summary).not.toMatch(/AIS \/ TIS|Form 26AS (not provided|differences)/);
+
+    // The whole case page: every remaining section renders, and AIS / TIS / Form 26AS reconciliation is gone.
+    holder.detail = await (await ca.get(detailRoute, { params: { reference } })).json();
+    expect(holder.detail).not.toHaveProperty("tax_reconciliation");
+    const { default: Page } = await import("@/app/ca/cases/[reference]/page");
+    const page = renderToStaticMarkup(await Page({ params: Promise.resolve({ reference }) }));
+    for (const heading of ["Statement validation", "Transaction review", "Suggested documents", "Requested documents", "ITR summary"]) {
+      expect(page).toContain(heading);
+    }
+    expect(page).not.toMatch(/26AS reconciliation|AIS \/ TIS|Upload and reconcile|tax-reports/);
   });
 });

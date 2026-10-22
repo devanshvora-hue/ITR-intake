@@ -18,6 +18,13 @@ import { describe, detectMode, extractCounterparty, matchName, normalise, tokens
   type TransactionMode } from "./text";
 import type { Transaction } from "./validation";
 
+/**
+ * The rule set's version, stamped on every review and classified row. Bump it whenever a rule changes so a review
+ * always says which rules produced it. v4: specification categories and priority, identifiable payees, UPI
+ * merchant default, self/family/savings transfer wording, freelance receipts.
+ */
+export const CLASSIFIER_VERSION = "itr_intake.classifier/v4";
+
 export const CATEGORIES = [
   "Salary / Pension", "Business / Professional Receipts", "Rent Received", "Interest – Savings Bank",
   "Interest – FD / RD / Others", "Dividend", "Sale / Redemption of Investments", "Income Tax Refund",
@@ -132,7 +139,7 @@ export const BANK_RULES: KeywordRule[] = [
     exclude: PARTY_TRANSFER, confidence: "high", note: "Interest on a deposit credited by the bank." },
   { name: "bank.savings_interest", category: "Interest – Savings Bank", direction: "credit",
     patterns: [String.raw`\bSB INT`, String.raw`\bSAVINGS? (BANK |AC |ACCOUNT )?INT`, String.raw`\bINT(EREST)? (PD|PAID|CR|CREDIT)\b`,
-      String.raw`\b(CREDIT|CR) INT(EREST)?\b`, String.raw`^INTEREST$`],
+      String.raw`\b(CREDIT|CR) INT(EREST)?\b`, String.raw`^INTEREST$`, String.raw`\bINT(EREST)? ON (SAVINGS?|SB)\b`],
     exclude: [String.raw`\b(FD|RD|TD|FIXED|RECURRING|TERM)\b`, ...PARTY_TRANSFER], confidence: "high",
     note: "Savings account interest credited by the bank." },
   { name: "bank.tds", category: "Tax Payments", direction: "debit",
@@ -365,7 +372,10 @@ function weakNameHints(t: Transaction, p: ClientProfile): string {
 // name that merely resembles the client's is left for review.
 
 const SELF_WORDING = [String.raw`\bSELF (TRANSFER|TRF|TRANSFR|A ?C|ACCOUNT|ACCT)\b`, String.raw`\b(TO|FROM) SELF\b`,
-  String.raw`\bOWN (A ?C|ACCOUNT|ACCT|ACCOUNTS)\b`, String.raw`\bTRANSFER TO OWN\b`, String.raw`\bBETWEEN (MY )?OWN\b`];
+  String.raw`\bOWN (A ?C|ACCOUNT|ACCT|ACCOUNTS)\b`, String.raw`\bTRANSFER TO OWN\b`, String.raw`\bBETWEEN (MY )?OWN\b`,
+  // Money moved to or from the client's savings account ("TRANSFER TO SAVINGS", "SB A/C TRF"); interest is not a transfer.
+  String.raw`\b(TRANSFER|TRF|TRANSFR|SWEEP) (TO|FROM) (MY )?(SAVINGS?|SB)( (A ?C|ACCOUNT|ACCT))?\b`,
+  String.raw`\b(SAVINGS?|SB) (A ?C |ACCOUNT |ACCT )?(TRANSFER|TRF)\b`];
 const RELATIVE = "(FATHER|MOTHER|DAD|DADDY|MOM|MUMMY|MAMMI|PAPA|PAPPA|WIFE|HUSBAND|SPOUSE|SON|DAUGHTER|BROTHER|SISTER|BHAI|DIDI)";
 const FAMILY_WORDING = [String.raw`\bFAMILY (TRANSFER|TRF|TRANSFR)\b`, String.raw`\b(TRANSFER|TRF) (FROM|TO) FAMILY\b`,
   String.raw`\b(FROM|TO) (MY )?${RELATIVE}\b`, String.raw`\bFOR (MY )?${RELATIVE}\b`];

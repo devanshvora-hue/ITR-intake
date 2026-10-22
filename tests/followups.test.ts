@@ -5,6 +5,7 @@
 
 import ExcelJS from "exceljs";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { GET as caCases } from "@/app/api/ca/cases/route";
 import { GET as detailRoute } from "@/app/api/ca/cases/[reference]/route";
 import { POST as checklistItem } from "@/app/api/ca/cases/[reference]/checklist/[itemId]/route";
 import { POST as reopenRoute } from "@/app/api/ca/cases/[reference]/document-requests/[requestId]/reopen/route";
@@ -20,6 +21,7 @@ import { POST as saveProfile } from "@/app/api/client/cases/[reference]/profile/
 import { POST as uploadStatement } from "@/app/api/client/cases/[reference]/statements/route";
 import { GET as clientMe } from "@/app/api/client/me/route";
 import { POST as start } from "@/app/api/client/start/route";
+import { nextAction, type CaseReadiness } from "@/lib/case-readiness";
 import type { ReviewRow } from "@/lib/case-review";
 import { financialYearOptions } from "@/lib/server/client-auth";
 import { MemoryStore, setFileStoreForTests } from "@/lib/server/storage";
@@ -56,8 +58,8 @@ describe("UPI direction and rule priority", () => {
     expect(triple(txn("UPI/P2A/512300001112/VIKRAM SYNTH/Dinner", 850))).toEqual(["Personal Expenses", "Needs confirmation", "mode.upi_unidentified"]);
     const freelance = one(txn("NEFT  FREELANCE PAYMENT/DEMO CLIENT", 0, 12000));
     expect([freelance.category, freelance.reviewStatus]).toEqual(["Business / Professional Receipts", "Needs confirmation"]);
-    // Ownership of the savings account is not established: left for review.
-    expect(one(txn("IMPS  IMPS/TRANSFER TO SAVINGS", 10000)).category).toBe("Others – Needs Review");
+    // Explicit savings-account transfer wording is a self transfer (provisional).
+    expect(triple(txn("IMPS  IMPS/TRANSFER TO SAVINGS", 10000))).toEqual(["Self Transfer", "Needs confirmation", "self.wording"]);
   });
 
   it("lets stronger evidence win over the UPI default", () => {
@@ -96,6 +98,77 @@ describe("self and family transfer wording", () => {
     // "Self assessment tax" and "cash deposit by self" are not self transfers.
     expect(one(txn("SELF ASSESSMENT TAX CHALLAN", 9000)).category).toBe("Tax Payments");
     expect(one(txn("CASH DEPOSIT BY SELF", 0, 9000)).category).toBe("Cash Deposit");
+  });
+});
+
+describe("savings, freelance and family rules", () => {
+  it("treats explicit savings-account transfers as self transfers in both directions, but not interest", () => {
+    for (const [narration, debit, credit] of [
+      ["IMPS  IMPS/TRANSFER TO SAVINGS", 10000, 0], ["NEFT TRANSFER FROM SAVINGS A/C", 0, 8000], ["SB A/C TRF 778899", 2500, 0],
+      ["UPI/TRANSFER TO MY SAVINGS ACCOUNT", 1500, 0], ["AUTO SWEEP FROM SAVINGS", 0, 25000],
+    ] as const) {
+      const c = one(txn(narration, debit, credit));
+      expect([narration, c.category, c.reviewStatus, c.debit, c.credit]).toEqual([narration, "Self Transfer", "Needs confirmation",
+        BigInt(debit * 100), BigInt(credit * 100)]); // amounts are never changed
+    }
+    for (const narration of ["SAVINGS INTEREST CREDIT", "SB INT PD 01-04-2025 TO 30-06-2025", "INTEREST ON SAVINGS ACCOUNT"]) {
+      expect([narration, one(txn(narration, 0, 312)).category]).toEqual([narration, "Interest – Savings Bank"]);
+    }
+  });
+
+  it("treats freelance credits as professional receipts to confirm, never freelance debits", () => {
+    for (const narration of ["NEFT  FREELANCE PAYMENT/DEMO CLIENT", "IMPS FREELANCE INCOME APRIL", "FREELANCER FEES SYNTH STUDIO"]) {
+      expect([narration, ...triple(txn(narration, 0, 12000)).slice(0, 2)])
+        .toEqual([narration, "Business / Professional Receipts", "Needs confirmation"]);
+    }
+    expect(one(txn("NEFT FREELANCE PAYMENT TO SYNTH DESIGNER", 12000)).category).not.toBe("Business / Professional Receipts");
+    expect(one(txn("UPI/FREELANCE DESIGNER/Logo", 1500)).category).not.toBe("Business / Professional Receipts");
+  });
+
+  it("treats explicit family transfers as family transfers in both directions", () => {
+    for (const [narration, debit, credit] of [
+      ["IMPS TRANSFER TO FAMILY", 5000, 0], ["IMPS  IMPS/TRANSFER FROM FAMILY  —", 0, 5000], ["FAMILY TRANSFER", 2000, 0],
+      ["FAMILY TRF SYNTH", 0, 2000], ["NEFT TO FATHER", 15000, 0], ["IMPS FROM MOTHER", 0, 7000], ["UPI/SENT TO BROTHER", 900, 0],
+    ] as const) {
+      const c = one(txn(narration, debit, credit));
+      expect([narration, c.category, c.reviewStatus]).toEqual([narration, "Family Transfer", "Needs confirmation"]);
+    }
+    for (const narration of ["NEFT TRANSFER SYNTH TRADING CO", "IMPS TRANSFER 512399991111"]) {
+      expect([narration, one(txn(narration, 0, 5000)).category]).toEqual([narration, "Others – Needs Review"]);
+    }
+    // A relative's word inside another phrase is not a family transfer.
+    expect(one(txn("FATHERS DAY GIFT SHOP", 0, 5000)).category).not.toBe("Family Transfer");
+    expect(one(txn("UPI/MOTHERCARE STORE", 900)).category).not.toBe("Family Transfer");
+  });
+
+  it("resolves priority conflicts in the specification's order", () => {
+    // Family wording (rule 2) wins over freelance wording (rule 4).
+    expect(one(txn("IMPS FREELANCE PAYMENT FROM FATHER", 0, 5000)).category).toBe("Family Transfer");
+    // A savings transfer paid by UPI is a self transfer, not the UPI personal-expense default.
+    expect(one(txn("UPI/TRANSFER TO SAVINGS/HDFC", 3000)).category).toBe("Self Transfer");
+    // Specific payees win over the UPI default; incoming UPI is never a personal expense.
+    expect(one(txn("UPI/STAR HEALTH INSURANCE PREMIUM", 18000)).category).toBe("Insurance – Health");
+    expect(one(txn("UPI/RAHUL-MART", 0, 640)).category).not.toBe("Personal Expenses");
+  });
+});
+
+describe("next-step message", () => {
+  const readiness = (over: Partial<CaseReadiness> & { required?: number } = {}): CaseReadiness => ({
+    statement: "verified", unverified_reasons: [], transactions_to_review: 0,
+    documents: { required_outstanding: over.required ?? 0, required_received: 0, required_waived: 0, optional_outstanding: 0,
+      total_requests: over.required ?? 0 }, ...over,
+  });
+  it("names every pending action, and says when nothing is pending", () => {
+    expect(nextAction("ca_review_required", readiness({ transactions_to_review: 6 }))).toBe("Review 6 transactions awaiting a decision");
+    expect(nextAction("documents_pending", readiness({ required: 1 }))).toBe("Follow up on 1 required document");
+    expect(nextAction("documents_pending", readiness({ transactions_to_review: 1, required: 2 })))
+      .toBe("Review 1 transaction awaiting a decision and follow up on 2 required documents");
+    expect(nextAction("ca_review_required", readiness({ statement: "unverified", transactions_to_review: 3, required: 1 })))
+      .toBe("Review 3 transactions awaiting a decision, check the unverified statement and follow up on 1 required document");
+    expect(nextAction("review_ready", readiness())).toBe("No pending actions: download the ITR summary workbook");
+    expect(nextAction("draft", readiness({ statement: "none" }))).toBe("Wait for the client's statement");
+    expect(nextAction("statement_uploaded", readiness({ statement: "not_prepared" }))).toBe("Prepare the statement review");
+    expect(nextAction("closed", readiness({ transactions_to_review: 4 }))).toBe("Closed");
   });
 });
 
@@ -204,6 +277,27 @@ describe("dashboard and workbook consistency", () => {
     expect(review.unverified_reasons).toContain("statement_needs_manual_review");
     const wb = await workbook(ca, reference);
     expect(String(wb.getWorksheet("Summary")!.getCell("A3").value)).toMatch(/^UNVERIFIED/);
+  });
+});
+
+describe("dashboard next step through the routes", () => {
+  it("follows transactions awaiting decisions and outstanding required documents", async () => {
+    const { ca, reference } = await caseWith(GOOD, "a", { income_sources: ["salary"] });
+    const listed = async () => (await (await ca.get(caCases)).json()).cases.find((c: { reference: string }) => c.reference === reference);
+    let c = await listed();
+    // Salary is auto (declared); the unknown credit and the small UPI payment to a person await a decision.
+    expect([c.readiness.transactions_to_review, nextAction(c.status, c.readiness)]).toEqual([2, "Review 2 transactions awaiting a decision"]);
+    await decide(ca, reference, 3, { category: "Business / Professional Receipts" });
+    await decide(ca, reference, 6, { category: "Personal Expenses" });
+    c = await listed();
+    expect([c.readiness.transactions_to_review, nextAction(c.status, c.readiness)])
+      .toEqual([0, "No pending actions: download the ITR summary workbook"]);
+    const form16 = (await detail(ca, reference)).checklist.find((i: { key: string }) => i.key === "form_16");
+    await ca.post(checklistItem, { action: "request" }, { params: { reference, itemId: form16.id } });
+    c = await listed();
+    expect(nextAction(c.status, c.readiness)).toBe("Follow up on 1 required document");
+    // The case page uses the same facts.
+    expect((await detail(ca, reference)).readiness).toMatchObject({ transactions_to_review: 0, documents: { required_outstanding: 1 } });
   });
 });
 

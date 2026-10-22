@@ -4,7 +4,7 @@ import { getDb } from "@/lib/server/db";
 import { intakeProgress } from "@/lib/server/intake";
 import { apiRoute, json } from "@/lib/server/http";
 import { caPrincipal, caUnauthenticated } from "@/lib/server/principals";
-import { readinessView } from "@/lib/server/readiness";
+import { caseReadiness } from "@/lib/server/review";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -25,7 +25,7 @@ export const GET = apiRoute(async (request) => {
       reference: c.reference, financial_year: c.financial_year, status: c.status, updated_at: c.updated_at,
       created_at: c.created_at, client_first_name: c.client_first_name, client_email: c.client_email,
       client_email_verified: c.client_email_verified, profile: profileView(c),
-      readiness: await readinessView(db, principal.firmId, c), intake: await intakeProgress(db, principal.firmId, c),
+      readiness: await caseReadiness(db, principal.firmId, c), intake: await intakeProgress(db, principal.firmId, c),
     }))),
   });
 });

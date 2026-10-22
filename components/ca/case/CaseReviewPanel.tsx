@@ -36,6 +36,7 @@ export function CaseReviewPanel({ reference, review, caseClosed }: { reference: 
           <p className="text-xs text-ink-faint">
             Prepared {review.prepared_at.slice(0, 16).replace("T", " ")} UTC from {review.statement.display_name}
             {review.period_start && ` · ${review.period_start} to ${review.period_end ?? "?"}`}
+            {review.classifier_version && ` · rules ${review.classifier_version.replace(/^itr_intake\.classifier\//, "")}`}
           </p>
         </div>
         <div className="grid gap-4 lg:grid-cols-[1.4fr_1fr]">

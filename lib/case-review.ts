@@ -5,7 +5,6 @@ import type { CaseReadiness } from "./case-readiness";
 import type { CaChecklistItem } from "./checklist";
 import type { DocumentRequest } from "./document-requests";
 import type { IntakeProgress } from "./intake";
-import type { TaxReconciliationView } from "./tax-reconciliation";
 import type { StatementUpload } from "./statements";
 
 export type CaseInfo = {
@@ -95,7 +94,6 @@ export type CaseDetail = {
   review: CaseReview | null;
   document_requests: DocumentRequest[];
   checklist: CaChecklistItem[];
-  tax_reconciliation: TaxReconciliationView;
 };
 
 // Upload outcomes the backend accepts for review preparation

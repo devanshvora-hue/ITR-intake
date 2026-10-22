@@ -134,14 +134,14 @@ describe("ITR summary and review flags", () => {
     ];
     expect(codes(rs)).toEqual(["outside_financial_year", "cash_deposits_sft", "large_cash_deposit", "cash_receipts_269st",
       "cash_withdrawals_194n", "gifts_56_2_x", "unexplained_credits", "interest_income", "possible_deductions",
-      "capital_gains_events", "loans", "tax_reports_not_provided"]);
+      "capital_gains_events", "loans"]);
     const deductions = reviewFlags(rs, { financialYear: "2025-26", declaredSources: [] }).find((f) => f.code === "possible_deductions")!;
     expect(deductions.detail).toMatch(/80C \/ 80CCD: ₹24,150.00; 24\(b\).*₹32,450.00; 80TTA \/ 80TTB.*₹1,200.00/);
     expect(deductions.detail).toMatch(/old tax regime/);
   });
 
   it("stays quiet when nothing applies, and checks the head of income against what the client declared", () => {
-    expect(codes([row(1, "Personal Expenses", 500, 0)])).toEqual(["tax_reports_not_provided"]);
+    expect(codes([row(1, "Personal Expenses", 500, 0)])).toEqual([]);
     expect(codes([row(1, "Salary / Pension", 0, 85000)], ["business"])).toContain("head_of_income");
     expect(codes([row(1, "Salary / Pension", 0, 85000)], ["salary"])).not.toContain("head_of_income");
   });
@@ -273,6 +273,7 @@ describe("CA category decisions", () => {
     expect(wb.worksheets.map((w) => w.name)).toEqual(expect.arrayContaining(["Summary", "All Transactions", "Needs Review",
       "Business - Professional Expense", "Salary - Pension"]));
     expect(wb.worksheets.map((w) => w.name)).not.toContain("Dividend"); // nil categories get no sheet
+    expect(wb.worksheets.map((w) => w.name)).not.toContain("AIS - 26AS Reconciliation"); // the feature was removed
     const summary = wb.getWorksheet("Summary")!;
     const cells = summary.getSheetValues().flat().map((v) => (v && typeof v === "object" && "formula" in v ? `=${v.formula}` : String(v ?? "")));
     expect(cells.some((v) => v.startsWith("=SUMIFS("))).toBe(true);

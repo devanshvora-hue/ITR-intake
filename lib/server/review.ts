@@ -12,17 +12,15 @@
 
 import { recordAudit } from "./audit";
 import { loadDecisions, rowFingerprint, type Decision } from "./corrections";
-import { taxReconciliation } from "./tax-reports";
-import type { BankCredit } from "../statement/tax-reconcile";
 import { syncCaseStatus } from "./case-status";
 import { refreshChecklist } from "./checklist";
 import type { CaseRow } from "./client-auth";
 import type { Db } from "./db";
 import { Conflict } from "./errors";
-import { PREPARABLE_UPLOAD_STATUSES, verification } from "./readiness";
+import { PREPARABLE_UPLOAD_STATUSES, readinessView, verification } from "./readiness";
 import { checkKey, type FileStore, StorageError } from "./storage";
 import { uploadView } from "./views";
-import { classifyStatement, type Category as ClassifiedCategory } from "../statement/classifier";
+import { classifyStatement, CLASSIFIER_VERSION, type Category as ClassifiedCategory } from "../statement/classifier";
 import type { TransactionMode as ClassifiedMode } from "../statement/text";
 import { categoryTotals, keyFigures, reviewFlags, type SummaryRow } from "../statement/itr-summary";
 import { buildWorkbook } from "../statement/workbook";
@@ -30,7 +28,7 @@ import { parseCsv, parsePdfPages, REJECTED, type ImportResult } from "../stateme
 import { containsImages, ExtractionFailed, ExtractorBusy, extractPdfPages } from "../statement/pdf-text";
 import { formatPaise, parseAmount, parseDate, validateRows, type RawTransaction } from "../statement/validation";
 
-export const CLASSIFIER_VERSION = "itr_intake.classifier/stage5.8";
+export { CLASSIFIER_VERSION };
 const PREPARABLE_CASE_STATUSES = ["statement_uploaded", "ca_review_required", "documents_pending", "review_ready"];
 
 export class ReviewRefused extends Error {
@@ -256,17 +254,12 @@ function summaryRows(rows: ReviewedRow[]): SummaryRow[] {
   }));
 }
 
-function bankCredits(rows: ReviewedRow[]): BankCredit[] {
-  return rows.filter((r) => r.is_valid && r.txn_date && parseAmount(r.credit) > 0n).map((r) => ({
-    rowNumber: r.row_number, date: r.txn_date as string, credit: parseAmount(r.credit), category: r.category ?? "",
-    narration: r.narration ?? "",
-  }));
-}
-
-/** The AIS / TIS / 26AS reconciliation of a case against its current review (CA decisions applied), if any. */
-export async function caseTaxReconciliation(db: Db, firmId: string, caseRow: { id: string; reviewed_upload_id: string | null }) {
-  const rows = caseRow.reviewed_upload_id ? (await storedRows(db, firmId, caseRow.id, caseRow.reviewed_upload_id)).rows : null;
-  return taxReconciliation(db, firmId, caseRow.id, rows ? bankCredits(rows) : null);
+/** Readiness facts for the dashboard and case page, including transactions still awaiting a CA decision. */
+export async function caseReadiness(db: Db, firmId: string, caseRow: Parameters<typeof readinessView>[2]) {
+  const readiness = await readinessView(db, firmId, caseRow);
+  const { rows } = caseRow.reviewed_upload_id
+    ? await storedRows(db, firmId, caseRow.id, caseRow.reviewed_upload_id) : { rows: [] };
+  return { ...readiness, transactions_to_review: rows.filter((x) => x.group === "confirm" || x.group === "manual").length };
 }
 
 /** The stored review of a case for its own firm's CA, or null. */
@@ -279,7 +272,6 @@ export async function reviewView(db: Db, firmId: string, caseRow: ReviewCase) {
   const { rows, staleDecisions } = await storedRows(db, firmId, caseRow.id, caseRow.reviewed_upload_id);
   const check = verification(caseRow, upload.status, rows);
   const count = (group: ReviewGroup) => rows.filter((r) => r.group === group).length;
-  const tax = await taxReconciliation(db, firmId, caseRow.id, bankCredits(rows));
   return {
     statement: uploadView(upload),
     prepared_at: caseRow.reviewed_at,
@@ -299,8 +291,7 @@ export async function reviewView(db: Db, firmId: string, caseRow: ReviewCase) {
     itr: {
       categories: categoryTotals(summaryRows(rows)),
       key_figures: keyFigures(summaryRows(rows)),
-      flags: reviewFlags(summaryRows(rows), { financialYear: caseRow.financial_year, declaredSources: declaredSourcesOf(caseRow),
-        reportsProvided: tax.reports.length > 0, taxReportOpen: tax.open_count, taxReportBankOnly: tax.bank_only.length }),
+      flags: reviewFlags(summaryRows(rows), { financialYear: caseRow.financial_year, declaredSources: declaredSourcesOf(caseRow) }),
     },
     rows: rows.map((r) => ({
       row_number: r.row_number, is_valid: r.is_valid, issues: r.issues_json, date: r.txn_date, narration: r.narration,
@@ -370,10 +361,8 @@ export async function buildCaseWorkbook(db: Db, firmId: string, caseRow: ReviewC
     note += ` Rows not read: ${listed}${invalid.length > 30 ? " and more" : ""}.`;
   }
   const profile = (caseRow.profile_json ?? {}) as { full_name?: string; bank_name?: string; account_last4?: string };
-  const tax = await taxReconciliation(db, firmId, caseRow.id, bankCredits(rows));
   return buildWorkbook({
     transactions, rowsReceived: rows.length, invalidCount: invalid.length, reconciliation, flags: view.itr.flags,
-    taxReports: tax.reports.length ? tax : null,
     metadata: {
       clientName: profile.full_name || caseRow.client_first_name, clientReference: caseRow.reference,
       bankName: profile.bank_name, accountNumber: profile.account_last4, financialYear: caseRow.financial_year,

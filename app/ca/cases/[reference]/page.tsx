@@ -3,12 +3,12 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { CaseChecklist } from "@/components/ca/case/CaseChecklist";
 import { CaseItrSummary } from "@/components/ca/case/CaseItrSummary";
-import { CaseTaxReconciliation } from "@/components/ca/case/CaseTaxReconciliation";
 import { CaseDocumentRequests } from "@/components/ca/case/CaseDocumentRequests";
 import { CaseReviewPanel } from "@/components/ca/case/CaseReviewPanel";
 import { CaseStatements } from "@/components/ca/case/CaseStatements";
 import { getCaCase } from "@/lib/ca-case";
 import type { CaseDetail } from "@/lib/case-review";
+import { nextAction } from "@/lib/case-readiness";
 import { CASE_STATUS_LABELS } from "@/lib/case-status";
 import { INCOME_SOURCES } from "@/lib/checklist";
 import { CA_INTAKE_STEP_LABELS } from "@/lib/intake";
@@ -29,22 +29,6 @@ function Shell({ children }: { children: React.ReactNode }) {
 
 const RECON_SHORT: Record<string, string> = { passed: "PASS", failed: "FAIL", incomplete: "Unable to verify",
   not_available: "Unable to verify" };
-
-/** The one thing the CA should do next on this case. */
-function nextStep(detail: CaseDetail): string {
-  const { case: c, readiness: r, review } = detail;
-  if (c.status === "closed") return "Closed";
-  if (r.statement === "none") return "Wait for the client's bank statement";
-  if (!review) return "Prepare the statement review";
-  const open = review.totals.confirm + review.totals.manual;
-  if (open) return `Review ${open} transaction${open === 1 ? "" : "s"} needing a decision`;
-  if (!review.verified) return "Check the unverified statement before relying on it";
-  if (r.documents.required_outstanding) {
-    const n = r.documents.required_outstanding;
-    return `Follow up on ${n} required document${n === 1 ? "" : "s"}`;
-  }
-  return "Download the ITR summary workbook";
-}
 
 function SummaryStrip({ detail }: { detail: CaseDetail }) {
   const { case: c, profile, review, readiness: r } = detail;
@@ -71,7 +55,7 @@ function SummaryStrip({ detail }: { detail: CaseDetail }) {
         ))}
         <div className="sm:col-span-2 lg:col-span-1">
           <dt className="text-xs text-ink-soft">Next step</dt>
-          <dd className="mt-1 font-semibold text-teal-deep">{nextStep(detail)}</dd>
+          <dd className="mt-1 font-semibold text-teal-deep">{nextAction(detail.case.status, detail.readiness)}</dd>
         </div>
       </dl>
     </div>
@@ -168,7 +152,6 @@ export default async function CaCasePage({ params }: { params: Promise<{ referen
       <CaseChecklist reference={c.reference} items={checklist} caseClosed={c.status === "closed"} />
       <CaseDocumentRequests reference={c.reference} requests={document_requests}
                             caseClosed={c.status === "closed"} />
-      <CaseTaxReconciliation reference={c.reference} view={result.detail.tax_reconciliation} caseClosed={c.status === "closed"} />
       <CaseItrSummary reference={c.reference} review={review} />
     </Shell>
   );
