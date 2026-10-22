@@ -52,8 +52,8 @@ export function FirmCodePanel({ initial }: { initial: FirmCodeState }) {
         result.status === 0
           ? "The ITR Intake server is not reachable. Is it running?"
           : (ERRORS[result.status]
-            ?? `The firm code could not be changed. Please try again.${
-              typeof result.data.ref === "string" ? ` (Reference: ${result.data.ref})` : ""}`),
+            ?? `The firm code could not be changed. Please try again. (Reference: ${
+              typeof result.data.ref === "string" ? result.data.ref : `${result.status} ${String(result.data.error ?? "")}`})`),
       );
     }
     startTransition(() => router.refresh());
