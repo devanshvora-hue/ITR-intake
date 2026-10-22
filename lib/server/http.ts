@@ -121,8 +121,21 @@ export function apiRoute<C = unknown>(handler: Handler<C>): Handler<C> {
         console.error("configuration error:", error.message); // names the variable, never its value
         return jsonError(503, "not_configured", "The server is not configured yet.");
       }
-      console.error("api error", error instanceof Error ? error.name : typeof error);
-      return jsonError(500, "internal_error", "Something went wrong.");
+      const ref = errorReference(error);
+      console.error("api error", new URL(request.url).pathname, ref);
+      return jsonError(500, "internal_error", "Something went wrong.", { ref });
     }
   };
+}
+
+/**
+ * A short, safe reference for an unexpected error: its class plus any fixed
+ * code (a Postgres SQLSTATE and constraint name, or a Node/driver code).
+ * Never the message, query, values or stack.
+ */
+export function errorReference(error: unknown): string {
+  const e = (error ?? {}) as { name?: unknown; code?: unknown; constraint?: unknown; constraint_name?: unknown };
+  const safe = (v: unknown) => (typeof v === "string" && /^[A-Za-z0-9_.-]{1,64}$/.test(v) ? v : null);
+  const name = error instanceof Error ? safe(error.name) ?? "Error" : typeof error;
+  return [name, safe(e.code), safe(e.constraint) ?? safe(e.constraint_name)].filter(Boolean).join("/");
 }
