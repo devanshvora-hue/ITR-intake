@@ -1,9 +1,10 @@
 import { z } from "zod";
-import { registerCa, RegistrationError, startEmailVerification, EMAIL_VERIFICATION_TTL_S } from "@/lib/server/ca-auth";
-import { getConfig } from "@/lib/server/config";
+import { registerCa, RegistrationError } from "@/lib/server/ca-auth";
+import { readSessionToken, setSessionCookie } from "@/lib/server/cookies";
 import { getDb } from "@/lib/server/db";
-import { canSendEmail, deliverAfterResponse, deliveryAnswer, queueEmail, TEMPLATE_VERIFY_EMAIL } from "@/lib/server/email";
-import { apiRoute, json, jsonError, readJson } from "@/lib/server/http";
+import { apiRoute, clientAddress, json, jsonError, readJson } from "@/lib/server/http";
+import { limits } from "@/lib/server/limits";
+import { HOUR, withinAll } from "@/lib/server/rate-limit";
 
 export const runtime = "nodejs";
 
@@ -17,29 +18,31 @@ const Body = z.strictObject({
   registration_number: z.string().max(64).nullish(),
 });
 
-// Registration always answers 202 the same way, also for a duplicate e-mail or
-// registration number (no account enumeration).
+const DUPLICATE_MESSAGES: Record<string, string> = {
+  email_taken: "An account with this email address already exists. Sign in instead.",
+  registration_number_taken: "A firm with this registration number is already registered.",
+};
+
+// Registration creates an active firm and owner and signs the owner in (201 with the CA session cookie). There is
+// no e-mail verification or approval step. A duplicate e-mail or registration number is refused with 409; the
+// per-address limit bounds how fast anyone can probe for existing accounts this way.
 export const POST = apiRoute(async (request) => {
   const body = await readJson(request, Body);
   const db = getDb();
-  let registration;
+  const allowed = await withinAll(db, [
+    ["register-peer", clientAddress(request), limits.CA_REGISTRATIONS_PER_ADDRESS, HOUR],
+    ["register-all", "all", limits.CA_REGISTRATIONS_ALL, HOUR],
+  ]);
+  if (!allowed) return jsonError(429, "rate_limited", "Too many registrations from here. Try again later.");
   try {
-    registration = await registerCa(db, body);
+    const registration = await registerCa(db, body, readSessionToken(request, "ca"));
+    return setSessionCookie(json({ status: "registered" }, 201), "ca", registration.token);
   } catch (error) {
     if (error instanceof RegistrationError) {
-      if (error.code === "email_taken" || error.code === "registration_number_taken") {
-        return json(deliveryAnswer("verification_required"), 202);
-      }
+      const duplicate = DUPLICATE_MESSAGES[error.code];
+      if (duplicate) return jsonError(409, "already_registered", duplicate, { code: error.code });
       return jsonError(400, "invalid_registration", "Please check the highlighted details.", { code: error.code });
     }
     throw error;
   }
-  const token = await startEmailVerification(db, registration.userId);
-  if (!canSendEmail()) return json(deliveryAnswer("verification_required"), 202);
-  const id = await queueEmail(db, {
-    template: TEMPLATE_VERIFY_EMAIL, recipient: registration.email, token, firmId: registration.firmId,
-    link: `${getConfig().appBaseUrl}/ca/verify-email#token=${token}`, ttlSeconds: EMAIL_VERIFICATION_TTL_S,
-  });
-  deliverAfterResponse(db, [id]);
-  return json(deliveryAnswer("verification_required"), 202);
 });

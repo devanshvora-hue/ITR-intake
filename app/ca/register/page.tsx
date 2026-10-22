@@ -12,14 +12,13 @@ export default function CaRegisterPage() {
       title="Register your firm"
       intro={
         <>
-          Accounts go through three steps: you register, you verify your email address, and an
-          administrator reviews and approves the firm. You can sign in only after approval.
-          Please use synthetic details in this prototype.
+          Your firm and account are ready as soon as you register, and you are signed in straight
+          away. Please use synthetic details in this prototype.
         </>
       }
       footer={
         <>
-          Already approved?{" "}
+          Already registered?{" "}
           <Link href="/ca/login" className="font-medium text-teal underline">
             Sign in
           </Link>

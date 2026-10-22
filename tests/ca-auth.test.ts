@@ -1,101 +1,182 @@
-// CA registration, verification, approval, login, sessions and password reset
-// through the real routes. Synthetic accounts only.
+// CA registration (immediately active, signed in), login, sessions and password
+// reset through the real routes. Synthetic accounts only.
 
 import { describe, expect, it } from "vitest";
+import { GET as caCases } from "@/app/api/ca/cases/route";
+import { POST as createCode } from "@/app/api/ca/firm-code/route";
 import { POST as login } from "@/app/api/ca/login/route";
 import { POST as logout } from "@/app/api/ca/logout/route";
 import { GET as me } from "@/app/api/ca/me/route";
 import { POST as register } from "@/app/api/ca/register/route";
 import { POST as requestReset } from "@/app/api/ca/request-password-reset/route";
-import { POST as resend } from "@/app/api/ca/resend-verification/route";
 import { POST as resetPassword } from "@/app/api/ca/reset-password/route";
-import { POST as verifyEmail } from "@/app/api/ca/verify-email/route";
-import { approveCa, authenticateCa, AuthenticationFailed, loginCa, MAX_FAILED_LOGINS } from "@/lib/server/ca-auth";
+import { POST as openCase } from "@/app/api/client/cases/route";
+import { POST as start } from "@/app/api/client/start/route";
+import { authenticateCa, AuthenticationFailed, loginCa, MAX_FAILED_LOGINS } from "@/lib/server/ca-auth";
+import { financialYearOptions } from "@/lib/server/client-auth";
 import { readSessionToken } from "@/lib/server/cookies";
+import { limits } from "@/lib/server/limits";
+import { hashPassword } from "@/lib/server/passwords";
 import { onboardCa } from "./helpers/ca";
 import { Client, env, mailedToken, PASSWORD, rows, setupTestServer } from "./helpers/http";
 
 setupTestServer();
+
+const FY = financialYearOptions().includes("2025-26") ? "2025-26" : financialYearOptions()[0];
 
 export function registration(tag = "a", extra: Record<string, unknown> = {}) {
   return { full_name: `CA ${tag} (synthetic)`, email: `ca-${tag}@example.test`, password: PASSWORD,
     firm_name: `Firm ${tag} (synthetic)`, ...extra };
 }
 
-describe("registration and verification", () => {
-  it("creates a pending firm, e-mails a link and activates nothing", async () => {
+async function startClient(ca: Client, email: string): Promise<Client> {
+  const code = (await (await ca.post(createCode)).json()).firm_code.code;
+  const client = new Client();
+  expect((await client.post(start, { firm_code: code, email })).status).toBe(200);
+  return client;
+}
+
+describe("registration", () => {
+  it("creates an active firm and owner, signs the owner in, and sends no e-mail", async () => {
     const ca = new Client();
     const response = await ca.post(register, registration());
-    expect(response.status).toBe(202);
-    expect(await response.json()).toEqual({ status: "verification_required", email_delivery: "simulated",
-      dev_outbox_url: "http://localhost:3000/api/dev/outbox" });
-    expect(await rows("SELECT f.status AS firm, u.status AS user_status FROM firms f JOIN ca_users u ON u.firm_id = f.id"))
-      .toEqual([{ firm: "pending_verification", user_status: "pending" }]);
-    expect(await mailedToken("ca-a@example.test")).toMatch(/^[0-9a-f-]{36}\.[A-Za-z0-9_-]{43}$/);
-    expect((await ca.post(login, { email: "ca-a@example.test", password: PASSWORD })).status).toBe(401);
+    expect(response.status).toBe(201);
+    expect(await response.json()).toEqual({ status: "registered" });
+    expect(response.headers.get("set-cookie")).toMatch(/itr_ca_session=.+HttpOnly; SameSite=Lax/);
+    expect(await rows(`SELECT f.status AS firm, f.approved_by, f.approved_at IS NOT NULL AS approved, u.status AS user_status,
+                              u.role, u.email_verified_at FROM firms f JOIN ca_users u ON u.firm_id = f.id`))
+      .toEqual([{ firm: "active", approved_by: "self-registration", approved: true, user_status: "active", role: "owner",
+        email_verified_at: null }]);
+    expect(await rows("SELECT count(*)::int AS n FROM email_outbox")).toEqual([{ n: 0 }]);
+    expect(await rows("SELECT count(*)::int AS n FROM verification_challenges")).toEqual([{ n: 0 }]);
+    expect(await rows("SELECT action FROM audit_events WHERE action = 'ca.registered'")).toEqual([{ action: "ca.registered" }]);
+    const [{ password_hash }] = await rows<{ password_hash: string }>("SELECT password_hash FROM ca_users");
+    expect(password_hash).not.toContain(PASSWORD);
   });
 
-  it("answers a duplicate exactly like a new registration", async () => {
-    const ca = new Client();
-    const first = await (await ca.post(register, registration())).json();
-    const again = await ca.post(register, registration("a", { full_name: "Someone else" }));
-    expect(again.status).toBe(202);
-    expect(await again.json()).toEqual(first);
-    expect(await rows("SELECT count(*)::int AS n FROM ca_users")).toEqual([{ n: 1 }]);
+  it("gives the new firm its dashboard at once: /me, cases, a firm code and a client case", async () => {
+    const ca = await onboardCa();
+    expect(await (await ca.get(me)).json()).toMatchObject({
+      user: { email: "ca-a@example.test", role: "owner" }, firm: { name: "Firm a (synthetic)", status: "active" } });
+    expect(await (await ca.get(caCases)).json()).toEqual({ cases: [] });
+    const client = await startClient(ca, "client-a@example.test");
+    expect((await client.post(openCase, { first_name: "Asha", financial_year: FY })).status).toBe(201);
+    expect((await (await ca.get(caCases)).json()).cases).toHaveLength(1);
   });
 
-  it("refuses weak passwords with a code and unknown fields with their names", async () => {
+  it("signs in with the password alone, without any token or approval", async () => {
+    await onboardCa();
+    const fresh = new Client();
+    expect((await fresh.post(login, { email: "CA-A@example.test", password: PASSWORD })).status).toBe(200);
+    expect((await fresh.get(me)).status).toBe(200);
+  });
+
+  it("keeps firms isolated: a second firm sees only its own cases", async () => {
+    const a = await onboardCa("a");
+    const b = await onboardCa("b");
+    const client = await startClient(a, "client-a@example.test");
+    expect((await client.post(openCase, { first_name: "Asha", financial_year: FY })).status).toBe(201);
+    expect((await (await a.get(caCases)).json()).cases).toHaveLength(1);
+    expect(await (await b.get(caCases)).json()).toEqual({ cases: [] });
+    expect((await (await b.get(me)).json()).firm.name).toBe("Firm b (synthetic)");
+  });
+
+  it("refuses a duplicate e-mail or registration number with 409 and creates nothing", async () => {
+    await new Client().post(register, registration("a", { registration_number: "REG-1" }));
+    const sameEmail = await new Client().post(register, registration("a", { email: "CA-A@Example.test", firm_name: "Other" }));
+    expect(sameEmail.status).toBe(409);
+    expect(await sameEmail.json()).toMatchObject({ error: "already_registered", code: "email_taken" });
+    expect(sameEmail.headers.get("set-cookie")).toBeNull();
+    const sameNumber = await new Client().post(register, registration("b", { registration_number: "REG-1" }));
+    expect(sameNumber.status).toBe(409);
+    expect(await sameNumber.json()).toMatchObject({ code: "registration_number_taken" });
+    expect(await rows("SELECT (SELECT count(*)::int FROM firms) AS f, (SELECT count(*)::int FROM ca_users) AS u"))
+      .toEqual([{ f: 1, u: 1 }]);
+    expect((await new Client().post(login, { email: "ca-a@example.test", password: PASSWORD })).status).toBe(200);
+  });
+
+  it("refuses weak passwords, bad e-mails and unknown fields without creating anything", async () => {
     const ca = new Client();
     const weak = await ca.post(register, registration("a", { password: "short" }));
     expect(weak.status).toBe(400);
     expect(await weak.json()).toMatchObject({ error: "invalid_registration", code: "password_too_short" });
-    const extra = await ca.post(register, { ...registration(), role: "admin" });
+    expect(await (await ca.post(register, registration("a", { email: "not-an-email" }))).json())
+      .toMatchObject({ code: "email_invalid" });
+    const extra = await ca.post(register, { ...registration(), role: "admin", status: "active" });
     expect(extra.status).toBe(422);
-    expect((await extra.json()).fields).toEqual(["role"]);
+    expect((await extra.json()).fields).toEqual(["role", "status"]);
+    expect(await rows("SELECT count(*)::int AS n FROM firms")).toEqual([{ n: 0 }]);
+    expect(ca.cookies.size).toBe(0);
   });
 
-  it("verifies once, moves the firm to pending approval and still refuses login until approved", async () => {
+  it("refuses registration without the allowed origin and CSRF header", async () => {
     const ca = new Client();
-    await ca.post(register, registration());
-    const token = await mailedToken("ca-a@example.test");
-    const ok = await ca.post(verifyEmail, { token });
-    expect(await ok.json()).toEqual({ status: "email_verified", next: "awaiting_approval" });
-    expect((await ca.post(verifyEmail, { token })).status).toBe(400);
-    expect(await rows("SELECT status FROM firms")).toEqual([{ status: "pending_approval" }]);
-    expect((await ca.post(login, { email: "ca-a@example.test", password: PASSWORD })).status).toBe(401);
-  });
-
-  it("refuses tampered and malformed verification links", async () => {
-    const ca = new Client();
-    await ca.post(register, registration());
-    const token = await mailedToken("ca-a@example.test");
-    for (const bad of [`${token.split(".")[0]}.${"x".repeat(43)}`, "nonsense", `${token}.extra`]) {
-      expect((await ca.post(verifyEmail, { token: bad })).status).toBe(400);
+    const refused: Record<string, string>[] = [{ origin: "https://evil.example.test" }, { "x-itr-request": "0" }];
+    for (const headers of refused) {
+      expect((await ca.call(register, { method: "POST", body: registration(), headers })).status).toBe(403);
     }
+    expect((await ca.call(register, { method: "POST", body: registration(), csrf: false })).status).toBe(403);
+    expect(await rows("SELECT count(*)::int AS n FROM firms")).toEqual([{ n: 0 }]);
   });
 
-  it("resends a link only to a pending, unverified account, with the same answer for everyone", async () => {
-    const ca = new Client();
-    await ca.post(register, registration());
-    const first = await mailedToken("ca-a@example.test");
-    const known = await (await ca.post(resend, { email: "ca-a@example.test" })).json();
-    const unknown = await (await ca.post(resend, { email: "nobody@example.test" })).json();
-    expect(unknown).toEqual(known);
-    const second = await mailedToken("ca-a@example.test");
-    expect(await rows("SELECT count(*)::int AS n FROM dev_mailbox")).toEqual([{ n: 2 }]);
-    expect((await ca.post(verifyEmail, { token: first })).status).toBe(400); // the newer link replaced it
-    expect((await ca.post(verifyEmail, { token: second })).status).toBe(200);
+  it("limits registrations per address", async () => {
+    for (let i = 0; i < limits.CA_REGISTRATIONS_PER_ADDRESS; i++) {
+      expect((await new Client().post(register, registration(`r${i}`))).status).toBe(201);
+    }
+    const over = await new Client().post(register, registration("over"));
+    expect(over.status).toBe(429);
+    expect(await rows("SELECT count(*)::int AS n FROM ca_users WHERE email_norm = 'ca-over@example.test'")).toEqual([{ n: 0 }]);
   });
 
-  it("approval needs a verified e-mail", async () => {
-    await new Client().post(register, registration());
-    await expect(approveCa(env.db, { email: "ca-a@example.test", approvedBy: "Operator" }))
-      .rejects.toMatchObject({ code: "email_not_verified" });
+  it("replaces a CA session presented at registration", async () => {
+    const ca = await onboardCa("a");
+    const before = ca.cookies.get("itr_ca_session")!;
+    expect((await ca.post(register, registration("b"))).status).toBe(201);
+    expect(await authenticateCa(env.db, before)).toBeNull();
+    expect((await (await ca.get(me)).json()).user.email).toBe("ca-b@example.test");
+  });
+});
+
+describe("accounts from the earlier verify-and-approve flow", () => {
+  async function legacyAccount(firmStatus: string, userStatus = "pending") {
+    const [firm] = await rows<{ id: string }>(
+      `INSERT INTO firms (name, status, approved_at) VALUES ('Legacy firm (synthetic)', $1,
+         CASE WHEN $1 IN ('active', 'suspended') THEN now() END) RETURNING id`, [firmStatus]);
+    await rows(`INSERT INTO ca_users (firm_id, email_norm, full_name, password_hash, role, status)
+                VALUES ($1, 'legacy@example.test', 'Legacy CA (synthetic)', $2, 'owner', $3)`,
+      [firm.id, await hashPassword(PASSWORD), userStatus]);
+  }
+
+  for (const firmStatus of ["pending_verification", "pending_approval"]) {
+    it(`activates a ${firmStatus} account on its first correct sign-in`, async () => {
+      await legacyAccount(firmStatus);
+      expect((await new Client().post(login, { email: "legacy@example.test", password: "wrong-password-123" })).status).toBe(401);
+      expect(await rows("SELECT status FROM firms")).toEqual([{ status: firmStatus }]);
+      const ca = new Client();
+      expect((await ca.post(login, { email: "legacy@example.test", password: PASSWORD })).status).toBe(200);
+      expect(await rows(`SELECT f.status AS firm, f.approved_at IS NOT NULL AS approved, u.status AS user_status
+                         FROM firms f JOIN ca_users u ON u.firm_id = f.id`))
+        .toEqual([{ firm: "active", approved: true, user_status: "active" }]);
+      expect(await rows("SELECT details_json FROM audit_events WHERE action = 'ca.activated'"))
+        .toEqual([{ details_json: { previous_firm_status: firmStatus } }]);
+      expect((await ca.get(caCases)).status).toBe(200);
+    });
+  }
+
+  it("never activates a suspended firm or a disabled user", async () => {
+    await legacyAccount("suspended");
+    expect((await new Client().post(login, { email: "legacy@example.test", password: PASSWORD })).status).toBe(401);
+    expect(await rows("SELECT status FROM firms")).toEqual([{ status: "suspended" }]);
+    await rows("DELETE FROM ca_users");
+    await rows("DELETE FROM firms");
+    await legacyAccount("active", "disabled");
+    expect((await new Client().post(login, { email: "legacy@example.test", password: PASSWORD })).status).toBe(401);
+    expect(await rows("SELECT status FROM ca_users")).toEqual([{ status: "disabled" }]);
   });
 });
 
 describe("login and sessions", () => {
-  it("signs in an approved CA with an HttpOnly cookie, shows /me, and signs out", async () => {
+  it("signs in a registered CA with an HttpOnly cookie, shows /me, and signs out", async () => {
     const ca = await onboardCa();
     const response = await ca.get(me);
     expect(await response.json()).toMatchObject({

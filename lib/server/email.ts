@@ -17,10 +17,9 @@ import { emailDelivery, getConfig, type Config, type SmtpConfig } from "./config
 import type { Db } from "./db";
 import { guarded } from "./errors";
 
-export const TEMPLATE_VERIFY_EMAIL = "ca_verify_email";
 export const TEMPLATE_PASSWORD_RESET = "ca_password_reset";
 export const TEMPLATE_CLIENT_SIGN_IN = "client_sign_in";
-export type Template = typeof TEMPLATE_VERIFY_EMAIL | typeof TEMPLATE_PASSWORD_RESET | typeof TEMPLATE_CLIENT_SIGN_IN;
+export type Template = typeof TEMPLATE_PASSWORD_RESET | typeof TEMPLATE_CLIENT_SIGN_IN;
 
 // Seconds to wait after the 1st-4th failed attempt (used if a retry job is added).
 const RETRY_DELAYS = [60, 5 * 60, 30 * 60, 2 * 60 * 60];
@@ -34,16 +33,6 @@ export function maskEmail(address: string): string {
 // --- templates -----------------------------------------------------------------------------------
 
 export function renderEmail(template: Template, link: string, ttlSeconds: number): { subject: string; body: string } {
-  if (template === TEMPLATE_VERIFY_EMAIL) {
-    return {
-      subject: "Verify your ITR Intake email address",
-      body: "Please confirm your email address for ITR Intake by opening this link:\n\n"
-        + `${link}\n\n`
-        + `The link works once and expires in ${Math.floor(ttlSeconds / 3600)} hours. Confirming your email does not `
-        + "approve your account; an administrator must approve it before you can sign in.\n\n"
-        + "If you did not register, ignore this message.",
-    };
-  }
   if (template === TEMPLATE_PASSWORD_RESET) {
     return {
       subject: "Reset your ITR Intake password",

@@ -1,16 +1,20 @@
-// CA authentication (ported from ca_auth.py): registration, e-mail
-// verification, operator approval, login, sessions, logout and password reset.
+// CA authentication (ported from ca_auth.py): registration, login, sessions,
+// logout and password reset.
 //
-// Lifecycle: register -> firm 'pending_verification', user 'pending'.
-// confirmEmail -> e-mail verified, firm 'pending_approval' (never activates).
-// approveCa (operator only) -> firm and user 'active'. Only an active,
-// verified user of an active firm can sign in.
+// Prototype policy: a firm is usable as soon as it registers. Registration
+// creates the firm and its owner as 'active' (approved_by "self-registration";
+// the e-mail is not verified) and signs the owner in. There is no e-mail
+// verification and no operator approval. Accounts left 'pending' by the
+// earlier verify-and-approve flow are activated on their first correct
+// sign-in. Only an active user of an active firm can sign in: a suspended firm
+// or a disabled user stays locked out.
 //
 // Login failures all raise the same AuthenticationFailed, whatever the cause,
 // and always spend one scrypt run. Tokens are returned once and stored only as
 // SHA-256 hashes. Nothing here logs passwords, tokens or rows.
 
 import { timingSafeEqual } from "node:crypto";
+import { recordAudit } from "./audit";
 import type { Db } from "./db";
 import { Conflict, guarded, InvalidInput, one } from "./errors";
 import { isId, isToken, newToken, normaliseEmail, tokenHash } from "./ids";
@@ -22,8 +26,6 @@ import {
 
 export const MAX_FAILED_LOGINS = 10;
 export const LOCKOUT_MS = 15 * 60 * 1000;
-export const EMAIL_VERIFICATION_TTL_S = 24 * 3600;
-export const EMAIL_VERIFICATION_ATTEMPTS = 5;
 export const PASSWORD_RESET_TTL_S = 30 * 60;
 export const PASSWORD_RESET_ATTEMPTS = 5;
 
@@ -45,13 +47,6 @@ export class RegistrationError extends Error {
   constructor(readonly code: string) {
     super(`Registration could not be completed (${code}).`);
     this.name = "RegistrationError";
-  }
-}
-
-export class ApprovalError extends Error {
-  constructor(readonly code: string) {
-    super(`Approval refused (${code}).`);
-    this.name = "ApprovalError";
   }
 }
 
@@ -87,8 +82,15 @@ async function getFirm(db: Db, firmId: string): Promise<Firm> {
 }
 
 function accountUsable(user: CaUser, firm: Firm, now: Date): boolean {
-  return user.status === "active" && user.email_verified_at !== null && firm.status === "active"
-    && (user.locked_until === null || user.locked_until <= now);
+  return user.status === "active" && firm.status === "active" && (user.locked_until === null || user.locked_until <= now);
+}
+
+const SELF_REGISTERED = "self-registration";
+const LEGACY_PENDING_FIRM = ["pending_verification", "pending_approval"];
+
+function newSessionTimes(now: Date) {
+  return { idleExpiresAt: new Date(now.getTime() + Math.min(SESSION_IDLE_MS, SESSION_ABSOLUTE_MS)),
+    absoluteExpiresAt: new Date(now.getTime() + SESSION_ABSOLUTE_MS) };
 }
 
 // --- registration ------------------------------------------------------------------------------------
@@ -103,8 +105,12 @@ function requiredText(value: unknown, field: string, max: number): string {
   return value;
 }
 
-/** Create a pending firm and its pending owner, atomically. Nothing becomes usable. */
-export async function registerCa(db: Db, input: RegistrationInput): Promise<{ firmId: string; userId: string; email: string }> {
+/**
+ * Create an active firm and its active owner and open the owner's session, atomically. A presented earlier CA
+ * session is revoked. RegistrationError for invalid input or a duplicate e-mail / registration number.
+ */
+export async function registerCa(db: Db, input: RegistrationInput, previousToken: string | null = null,
+                                 now: Date = new Date()): Promise<{ firmId: string; userId: string; email: string; token: string }> {
   try {
     checkPasswordPolicy(input.password);
   } catch (error) {
@@ -121,15 +127,20 @@ export async function registerCa(db: Db, input: RegistrationInput): Promise<{ fi
   const registrationNumber = input.registration_number == null ? null
     : requiredText(input.registration_number, "registration_number", 64);
   const passwordHash = await hashPassword(input.password);
+  const token = newToken();
   try {
     return await guarded(() => db.transaction(async (tx) => {
       const [firm] = await tx.query<{ id: string }>(
-        `INSERT INTO firms (name, contact_phone, contact_address, registration_number) VALUES ($1, $2, $3, $4)
-         RETURNING id`, [firmName, input.contact_phone ?? null, input.contact_address ?? null, registrationNumber]);
+        `INSERT INTO firms (name, contact_phone, contact_address, registration_number, status, approved_at, approved_by)
+         VALUES ($1, $2, $3, $4, 'active', now(), $5) RETURNING id`,
+        [firmName, input.contact_phone ?? null, input.contact_address ?? null, registrationNumber, SELF_REGISTERED]);
       const [user] = await tx.query<{ id: string }>(
-        `INSERT INTO ca_users (firm_id, email_norm, full_name, password_hash, role) VALUES ($1, $2, $3, $4, 'owner')
-         RETURNING id`, [firm.id, email, fullName, passwordHash]);
-      return { firmId: firm.id, userId: user.id, email };
+        `INSERT INTO ca_users (firm_id, email_norm, full_name, password_hash, role, status)
+         VALUES ($1, $2, $3, $4, 'owner', 'active') RETURNING id`, [firm.id, email, fullName, passwordHash]);
+      if (previousToken) await revokePresented(tx, previousToken, "ca");
+      await createSession(tx, { kind: "ca", firmId: firm.id, caUserId: user.id, token, ...newSessionTimes(now) });
+      await recordAudit(tx, { actorKind: "ca", actorId: user.id, firmId: firm.id, action: "ca.registered" });
+      return { firmId: firm.id, userId: user.id, email, token };
     }), "registration");
   } catch (error) {
     if (error instanceof Conflict) throw new RegistrationError(error.code);
@@ -140,7 +151,7 @@ export async function registerCa(db: Db, input: RegistrationInput): Promise<{ fi
 
 // --- one-time challenges ----------------------------------------------------------------------------
 
-type Purpose = "ca_email_verification" | "ca_password_reset" | "client_login";
+type Purpose = "ca_password_reset" | "client_login";
 
 export type Challenge = {
   id: string; purpose: Purpose; firm_id: string | null; ca_user_id: string | null; firm_code_id: string | null;
@@ -194,32 +205,6 @@ export async function consumeChallenge(db: Db, id: string): Promise<boolean> {
   return rows.length === 1;
 }
 
-export async function startEmailVerification(db: Db, userId: string): Promise<string> {
-  const user = one(await db.query<{ id: string; firm_id: string }>("SELECT id, firm_id FROM ca_users WHERE id = $1", [userId]));
-  return issueChallenge(db, "ca_email_verification", user, EMAIL_VERIFICATION_TTL_S, EMAIL_VERIFICATION_ATTEMPTS);
-}
-
-/** Verify a CA's e-mail; a 'pending_verification' firm moves to 'pending_approval'. Never activates. */
-export async function confirmEmail(db: Db, token: unknown): Promise<void> {
-  const challenge = await redeemChallenge(db, token, "ca_email_verification");
-  await db.transaction(async (tx) => {
-    if (!await consumeChallenge(tx, challenge.id)) throw new VerificationFailed();
-    await tx.query(
-      `UPDATE ca_users SET email_verified_at = COALESCE(email_verified_at, now()), updated_at = now()
-       WHERE id = $1 AND firm_id = $2`, [challenge.ca_user_id, challenge.firm_id]);
-    await tx.query(
-      `UPDATE firms SET status = 'pending_approval', updated_at = now()
-       WHERE id = $1 AND status = 'pending_verification'`, [challenge.firm_id]);
-  });
-}
-
-/** For resending: the pending, unverified user with this e-mail, if any. */
-export async function pendingUnverifiedUser(db: Db, email: unknown): Promise<{ id: string; email: string } | null> {
-  const user = await userForLogin(db, email);
-  if (!user || user.status !== "pending" || user.email_verified_at !== null) return null;
-  return { id: user.id, email: user.email_norm };
-}
-
 // --- password reset -------------------------------------------------------------------------------------
 
 export class PasswordResetFailed extends Error {
@@ -262,23 +247,6 @@ export async function confirmPasswordReset(db: Db, token: unknown, newPassword: 
   });
 }
 
-// --- operator approval -----------------------------------------------------------------------------
-
-/** Operator-only approval (no public endpoint): needs a verified e-mail; activates firm and user. */
-export async function approveCa(db: Db, input: { email: string; approvedBy: string }): Promise<void> {
-  if (!input.approvedBy.trim()) throw new ApprovalError("approver_required");
-  const user = await userForLogin(db, input.email);
-  if (!user) throw new ApprovalError("not_found");
-  await db.transaction(async (tx) => {
-    const firm = await getFirm(tx, user.firm_id);
-    if (user.email_verified_at === null) throw new ApprovalError("email_not_verified");
-    if (user.status === "disabled" || firm.status === "suspended") throw new ApprovalError("account_disabled");
-    await tx.query(`UPDATE firms SET status = 'active', approved_at = COALESCE(approved_at, now()),
-                    approved_by = $2, updated_at = now() WHERE id = $1`, [firm.id, input.approvedBy.trim()]);
-    await tx.query("UPDATE ca_users SET status = 'active', updated_at = now() WHERE id = $1", [user.id]);
-  });
-}
-
 // --- login, sessions, logout ------------------------------------------------------------------------
 
 /**
@@ -306,16 +274,23 @@ export async function loginCa(db: Db, email: unknown, password: unknown, previou
        WHERE id = $1`, [user.id, now, MAX_FAILED_LOGINS, new Date(now.getTime() + LOCKOUT_MS)]);
     throw new AuthenticationFailed();
   }
-  if (!accountUsable(user, firm, now)) throw new AuthenticationFailed();
+  // An account left pending by the earlier verify-and-approve flow is activated by its owner's correct password.
+  // Suspended firms and disabled users are never activated here.
+  const legacyPending = user.status === "pending" && LEGACY_PENDING_FIRM.includes(firm.status);
+  const usable = legacyPending ? { ...user, status: "active" } : user;
+  if (!accountUsable(usable, legacyPending ? { ...firm, status: "active" } : firm, now)) throw new AuthenticationFailed();
   const token = newToken();
   await db.transaction(async (tx) => {
+    if (legacyPending) {
+      await tx.query(`UPDATE firms SET status = 'active', approved_at = COALESCE(approved_at, now()),
+                        approved_by = COALESCE(approved_by, $2), updated_at = now() WHERE id = $1`, [firm.id, SELF_REGISTERED]);
+      await tx.query("UPDATE ca_users SET status = 'active', updated_at = now() WHERE id = $1", [user.id]);
+      await recordAudit(tx, { actorKind: "ca", actorId: user.id, firmId: firm.id, action: "ca.activated",
+        details: { previous_firm_status: firm.status } });
+    }
     if (previousToken) await revokePresented(tx, previousToken, "ca");
     await tx.query("UPDATE ca_users SET failed_logins = 0, locked_until = NULL, updated_at = now() WHERE id = $1", [user.id]);
-    await createSession(tx, {
-      kind: "ca", firmId: user.firm_id, caUserId: user.id, token,
-      idleExpiresAt: new Date(now.getTime() + Math.min(SESSION_IDLE_MS, SESSION_ABSOLUTE_MS)),
-      absoluteExpiresAt: new Date(now.getTime() + SESSION_ABSOLUTE_MS),
-    });
+    await createSession(tx, { kind: "ca", firmId: user.firm_id, caUserId: user.id, token, ...newSessionTimes(now) });
   });
   const principal = await authenticateCa(db, token, now);
   if (!principal) throw new AuthenticationFailed();

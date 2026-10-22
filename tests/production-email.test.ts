@@ -1,5 +1,6 @@
-// Production behaviour: Secure __Host- cookies, "not configured" answers
-// without SMTP, and real delivery through SMTP (a fake transport).
+// Production behaviour: registration without any e-mail set-up, Secure __Host-
+// cookies, "not configured" answers without SMTP, and real delivery through
+// SMTP (a fake transport) for password-reset e-mails.
 
 import { describe, expect, it } from "vitest";
 import { POST as requestReset } from "@/app/api/ca/request-password-reset/route";
@@ -18,28 +19,38 @@ const SMTP_CONFIG = readConfig({
 const body = { full_name: "CA (synthetic)", email: "ca-p@example.test", password: PASSWORD, firm_name: "Firm (synthetic)" };
 
 describe("production without SMTP", () => {
+  it("registers and signs in a firm with no e-mail configured", async () => {
+    const response = await new Client(PROD_ORIGIN).post(register, body);
+    expect(response.status).toBe(201);
+    expect(response.headers.get("set-cookie")).toMatch(/^__Host-itr_ca_session=.+Secure/);
+    expect(await rows("SELECT status FROM firms")).toEqual([{ status: "active" }]);
+  });
+
   it("says e-mail is not configured, queues nothing and offers no developer outbox", async () => {
     const client = new Client(PROD_ORIGIN);
-    const response = await client.post(register, body);
-    expect(await response.json()).toEqual({ status: "verification_required", email_delivery: "not_configured" });
-    await client.post(requestReset, { email: "ca-p@example.test" });
+    expect((await client.post(register, body)).status).toBe(201);
+    const response = await client.post(requestReset, { email: "ca-p@example.test" });
+    expect(await response.json()).toEqual({ status: "reset_requested", email_delivery: "not_configured" });
     await flush();
     expect(await rows("SELECT count(*)::int AS n FROM email_outbox")).toEqual([{ n: 0 }]);
   });
 });
 
 describe("production with SMTP", () => {
-  it("sends the verification e-mail after the response and clears the link from the database", async () => {
+  it("sends the reset e-mail after the response and clears the link from the database", async () => {
     setConfigForTests(SMTP_CONFIG);
     const sent: { to: string; subject: string; text: string; from: string }[] = [];
     setMailTransportForTests({ sendMail: async (m: never) => { sent.push(m); return { messageId: "<m1@example.test>" }; } } as never);
-    const response = await new Client(PROD_ORIGIN).post(register, body);
-    expect(await response.json()).toEqual({ status: "verification_required", email_delivery: "email" });
+    const client = new Client(PROD_ORIGIN);
+    expect((await client.post(register, body)).status).toBe(201);
+    expect(await rows("SELECT count(*)::int AS n FROM email_outbox")).toEqual([{ n: 0 }]); // registration sends nothing
+    const response = await client.post(requestReset, { email: "ca-p@example.test" });
+    expect(await response.json()).toEqual({ status: "reset_requested", email_delivery: "email" });
     expect(sent).toHaveLength(0); // nothing is sent before the response
     await flush();
     expect(sent).toHaveLength(1);
     expect(sent[0]).toMatchObject({ to: "ca-p@example.test", from: "no-reply@example.test" });
-    expect(sent[0].text).toContain(`${PROD_ORIGIN}/ca/verify-email#token=`);
+    expect(sent[0].text).toContain(`${PROD_ORIGIN}/ca/reset-password#token=`);
     expect(await rows("SELECT status, body_text, provider_message_id FROM email_outbox"))
       .toEqual([{ status: "sent", body_text: null, provider_message_id: "<m1@example.test>" }]);
   });
@@ -47,7 +58,9 @@ describe("production with SMTP", () => {
   it("records failures with fixed codes: retryable ones wait, permanent ones are dead", async () => {
     setConfigForTests(SMTP_CONFIG);
     setMailTransportForTests({ sendMail: async () => { throw Object.assign(new Error("535 provider text"), { code: "EAUTH" }); } } as never);
-    await new Client(PROD_ORIGIN).post(register, body);
+    const client = new Client(PROD_ORIGIN);
+    await client.post(register, body);
+    await client.post(requestReset, { email: "ca-p@example.test" });
     await flush();
     const [row] = await rows<{ status: string; last_error: string; body_text: string | null }>(
       "SELECT status, last_error, body_text FROM email_outbox");

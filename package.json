@@ -8,8 +8,7 @@
     "start": "next start",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run",
-    "admin": "node --env-file=.env.local scripts/admin.mjs"
+    "test": "vitest run"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.118.0",

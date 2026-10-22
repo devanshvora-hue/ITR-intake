@@ -16,7 +16,7 @@ export default async function CaLoginPage() {
     <AuthCard
       eyebrow="CA dashboard"
       title="Sign in"
-      intro="For approved CA firm accounts. Clients do not sign in here."
+      intro="For registered CA firm accounts. Clients do not sign in here."
       footer={
         <>
           New firm?{" "}

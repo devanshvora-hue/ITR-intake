@@ -72,8 +72,7 @@ aid only; uncertain items go to CA review. Visual redesign is deferred.
   | `/ca/login` | dynamic | Sign-in form; redirects to `/ca` if already signed in. |
   | `/ca/forgot-password` | static | Requests a reset link (same generic answer for every address). Added in the 5.4 walkthrough. |
   | `/ca/reset-password` | static | Reads `#token=` from the URL fragment (moved into memory, removed from the address bar), asks for a new password twice. Added in the 5.4 walkthrough. |
-  | `/ca/register` | static | CA/firm registration form; shows a "Development simulation: no email was sent" notice when applicable. |
-  | `/ca/verify-email` | static | Reads `#token=` from the URL fragment, posts it, clears it from the address bar. |
+  | `/ca/register` | static | CA/firm registration form. The firm and owner are active at once and the owner is signed in; the page then links to the dashboard. |
 - `next.config.ts` rewrites `/api/:path*` → `${ITR_API_ORIGIN ?? "http://127.0.0.1:8000"}/api/:path*`
   (same-origin proxy; no CORS).
 - `lib/api-client.ts` (browser): `postJson` with `credentials: "same-origin"` and
@@ -81,7 +80,7 @@ aid only; uncertain items go to CA review. Visual redesign is deferred.
 - `lib/ca-session.ts` (server only): `getCaSession()` forwards the request's
   `cookie` header to `/api/ca/me` and `/api/ca/cases`.
 - `components/ca/*`: `AuthCard`, `Field` (+ `FormMessage`, `primaryButton`),
-  `RegisterForm`, `LoginForm`, `VerifyEmail`, `LogoutButton`, `DevEmailNotice`.
+  `RegisterForm`, `LoginForm`, `LogoutButton`, `DevEmailNotice`.
 - `lib/demo-cases.ts` is a Stage 1 leftover and is **no longer imported**.
 
 ### Backend (Python 3.14.7, project-local `.venv`)
@@ -126,9 +125,7 @@ Two packages under `backend/` (pytest runs with `backend/` on `sys.path`):
 ### API endpoints (`app.py`)
 | Method + path | Auth | Purpose |
 |---|---|---|
-| `POST /api/ca/register` | public | Creates pending firm + owner; 202 `{status, email_delivery, [dev_outbox_url]}`. Duplicates get the same response. |
-| `POST /api/ca/verify-email` | public | `{token}` → e-mail verified; firm becomes `pending_approval`. |
-| `POST /api/ca/resend-verification` | public | Generic 202; new token (old one superseded) for pending, unverified accounts. No UI button yet. |
+| `POST /api/ca/register` | public | Creates an active firm + owner and signs the owner in: 201 `{status: "registered"}` + CA session cookie. 409 `already_registered` for a duplicate e-mail or registration number; 400 `invalid_registration` with `code`; 429 past 10/h per address or 200/h overall. No e-mail is sent. |
 | `POST /api/ca/request-password-reset` | public | `{email}` -> always the same 202 (`reset_requested`, `email_delivery`, dev `dev_outbox_url`); queues mail only for a real account, only in development. Limits: 3/h per hashed e-mail, 60/h per connected peer, 300/h overall. |
 | `POST /api/ca/reset-password` | public | `{token, new_password}` -> 200 `password_reset` (all sessions revoked, cookie cleared); 400 `reset_failed` / `invalid_password`; 429 after 60/h per peer or 600/h overall. |
 | `POST /api/ca/login` | public | Sets the session cookie; body `{status: "signed_in"}` only. |
@@ -147,9 +144,11 @@ Two packages under `backend/` (pytest runs with `backend/` on `sys.path`):
 | `GET /dev/outbox` | dev + direct loopback only | HTML list of simulated e-mails (and a note when mail is waiting for the worker). Not registered at all in production; 404 through the Next.js proxy and for any forwarding header. |
 
 ### Authentication and sessions
-- Lifecycle: register → firm `pending_verification`, user `pending` → verify
-  e-mail → firm `pending_approval` → **operator approval via CLI** → firm and
-  user `active`. Verification never approves. No firm code is issued yet.
+- Lifecycle (prototype policy, 2026-10-22): register → firm and owner `active`
+  at once (`approved_by` "self-registration"), owner signed in. No e-mail
+  verification and no operator approval. Accounts left `pending` by the earlier
+  verify-and-approve flow are activated on their first correct sign-in (audit
+  `ca.activated`); suspended firms and disabled users stay locked out.
 - Passwords: stdlib scrypt N=2^15, r=8, p=1, 16-byte salt, stored
   `scrypt$N$r$p$salt$hash`, `hmac.compare_digest`. Policy: ≥12 chars, not
   common/low-variety, ≤256.
@@ -561,9 +560,9 @@ statement was not accessed.
 - Firm isolation: `FirmScope` built only from the authenticated principal;
   every case-scoped query constrains firm and case; DB composite foreign keys
   back this up; out-of-scope = `NotFound`.
-- Administrator approval exists **only** as the CLI (`admin.py`); no HTTP admin
-  route and no admin password. Email verification ≠ professional verification;
-  the operator must check CA credentials manually.
+- No administrator approval and no e-mail verification (prototype policy since
+  2026-10-22): any registrant gets an active firm. CA credentials and e-mail
+  ownership are not checked.
 - Simulated e-mail: development only. Links live in `email_outbox.body_text`
   only while a message waits (cleared at delivery, final failure, supersession
   or `body_expires_at`: 24 h verification, 30 min reset) and then only in
