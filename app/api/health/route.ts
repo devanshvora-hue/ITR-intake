@@ -3,6 +3,7 @@
 
 import { ConfigError, getConfig } from "@/lib/server/config";
 import { getDb, SCHEMA_VERSION } from "@/lib/server/db";
+import { diagnoseDbError } from "@/lib/server/db-diagnosis";
 import { apiRoute, json, jsonError } from "@/lib/server/http";
 
 export const runtime = "nodejs";
@@ -22,8 +23,9 @@ export const GET = apiRoute(async () => {
   try {
     const rows = await getDb().query<{ version: number }>("SELECT max(version) AS version FROM schema_migrations");
     version = rows[0]?.version ?? null;
-  } catch {
-    return jsonError(503, "database_unavailable", "The database is not reachable or the schema is missing.");
+  } catch (error) {
+    return jsonError(503, "database_unavailable", "The database is not reachable or the schema is missing.",
+      { detail: diagnoseDbError(error) });
   }
   if (version !== SCHEMA_VERSION) {
     return jsonError(503, "schema_mismatch", "The database schema is not the expected version.");
