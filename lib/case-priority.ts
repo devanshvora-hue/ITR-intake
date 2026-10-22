@@ -43,23 +43,32 @@ export function casePriority(c: QueueCase, uploadStatuses: string[] = []): Prior
   return 5;
 }
 
-/** Short facts behind the case's place in the queue, most pressing first. */
-export function priorityReasons(c: QueueCase, uploadStatuses: string[] = []): string[] {
+export type PendingKey = "unverified" | "unusable" | "documents" | "transactions" | "prepare" | "statement" | "details";
+
+/** What is still open on the case, most pressing first, with a stable key for linking to where it is handled. */
+export function pendingItems(c: QueueCase, uploadStatuses: string[] = []): { key: PendingKey; label: string }[] {
   const r = c.readiness;
   const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
-  const reasons: string[] = [];
-  if (r.statement === "unverified") reasons.push("Statement review unverified");
+  const items: { key: PendingKey; label: string }[] = [];
+  if (r.statement === "unverified") items.push({ key: "unverified", label: "Statement review unverified" });
   if (r.statement === "none" && uploadStatuses.some((s) => UNUSABLE_UPLOADS.has(s))) {
-    reasons.push("Uploaded statement could not be used");
+    items.push({ key: "unusable", label: "Uploaded statement could not be used" });
   }
   if (r.documents.required_outstanding > 0) {
-    reasons.push(`${plural(r.documents.required_outstanding, "required document")} outstanding`);
+    items.push({ key: "documents", label: `${plural(r.documents.required_outstanding, "required document")} outstanding` });
   }
-  if (r.transactions_to_review > 0) reasons.push(`${plural(r.transactions_to_review, "transaction")} to decide`);
-  if (r.statement === "not_prepared") reasons.push("Review not prepared");
-  if (r.statement === "none" && !reasons.length) reasons.push("No usable statement yet");
-  if (!c.intake.steps.find((s) => s.key === "details")?.done) reasons.push("Client details incomplete");
-  return reasons;
+  if (r.transactions_to_review > 0) {
+    items.push({ key: "transactions", label: `${plural(r.transactions_to_review, "transaction")} to decide` });
+  }
+  if (r.statement === "not_prepared") items.push({ key: "prepare", label: "Review not prepared" });
+  if (r.statement === "none" && !items.length) items.push({ key: "statement", label: "No usable statement yet" });
+  if (!c.intake.steps.find((s) => s.key === "details")?.done) items.push({ key: "details", label: "Client details incomplete" });
+  return items;
+}
+
+/** Short facts behind the case's place in the queue, most pressing first. */
+export function priorityReasons(c: QueueCase, uploadStatuses: string[] = []): string[] {
+  return pendingItems(c, uploadStatuses).map((item) => item.label);
 }
 
 export type QueueEntry<C extends QueueCase> = { case: C; priority: Priority; reasons: string[] };

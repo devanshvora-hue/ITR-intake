@@ -14,7 +14,7 @@ import { POST as saveProfile } from "@/app/api/client/cases/[reference]/profile/
 import { POST as uploadRoute } from "@/app/api/client/cases/[reference]/statements/route";
 import { POST as start } from "@/app/api/client/start/route";
 import { CaseItrSummary } from "@/components/ca/case/CaseItrSummary";
-import { CaseReviewPanel } from "@/components/ca/case/CaseReviewPanel";
+import { StatementValidation, TransactionReview } from "@/components/ca/case/CaseReviewPanel";
 import { formatInr } from "@/lib/money";
 import { financialYearOptions } from "@/lib/server/client-auth";
 import { MemoryStore, setFileStoreForTests } from "@/lib/server/storage";
@@ -67,7 +67,9 @@ describe("CA case review rendering", () => {
     await ca.post(reviewRoute, { statement_id: (await up.json()).statement.id }, { params: { reference } });
     const { review } = await (await ca.get(detailRoute, { params: { reference } })).json();
 
-    const panel = renderToStaticMarkup(createElement(CaseReviewPanel, { reference, review, caseClosed: false }));
+    // Validation (Overview tab) and the transaction review (Transactions tab), as one stretch of markup.
+    const panel = renderToStaticMarkup(createElement(StatementValidation, { review }))
+      + renderToStaticMarkup(createElement(TransactionReview, { reference, review, caseClosed: false }));
     expect(panel).toContain("Balance reconciliation");
     expect(panel).toContain(">PASS<");
     expect(review.classifier_version).toBe("itr_intake.classifier/v4");
@@ -98,11 +100,26 @@ describe("CA case review rendering", () => {
     // The whole case page: every remaining section renders, and AIS / TIS / Form 26AS reconciliation is gone.
     holder.detail = await (await ca.get(detailRoute, { params: { reference } })).json();
     expect(holder.detail).not.toHaveProperty("tax_reconciliation");
+    // Each section now lives on its own tab (?tab=…); together the tabs still render every one.
     const { default: Page } = await import("@/app/ca/cases/[reference]/page");
-    const page = renderToStaticMarkup(await Page({ params: Promise.resolve({ reference }) }));
-    for (const heading of ["Statement validation", "Transaction review", "Suggested documents", "Requested documents", "ITR summary"]) {
-      expect(page).toContain(heading);
+    const render = async (tab?: string) => renderToStaticMarkup(await Page({ params: Promise.resolve({ reference }),
+      searchParams: Promise.resolve(tab === undefined ? {} : { tab }) }));
+    const tabs: Record<string, string[]> = {
+      overview: ["Outstanding actions", "Client intake", "Statement validation", "Uploaded statements"],
+      transactions: ["Transaction review"],
+      documents: ["Suggested documents", "Requested documents"],
+      summary: ["ITR summary"],
+    };
+    const pages: string[] = [];
+    for (const [tab, headings] of Object.entries(tabs)) {
+      const page = await render(tab);
+      pages.push(page);
+      for (const heading of headings) expect(page, `${heading} on ${tab}`).toContain(heading);
+      expect(page).toMatch(new RegExp(`aria-current="page"[^>]*>${tab[0].toUpperCase()}${tab.slice(1)}`));
     }
-    expect(page).not.toMatch(/26AS reconciliation|AIS \/ TIS|Upload and reconcile|tax-reports/);
+    expect(pages[0]).not.toContain("Transaction review");
+    expect(pages[1]).not.toContain("Statement validation");
+    expect(await render()).toBe(pages[0]); // no ?tab= is the overview
+    for (const page of pages) expect(page).not.toMatch(/26AS reconciliation|AIS \/ TIS|Upload and reconcile|tax-reports/);
   });
 });

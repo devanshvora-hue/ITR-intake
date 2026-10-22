@@ -4,12 +4,16 @@ import { redirect } from "next/navigation";
 import { CaseChecklist } from "@/components/ca/case/CaseChecklist";
 import { CaseItrSummary } from "@/components/ca/case/CaseItrSummary";
 import { CaseDocumentRequests } from "@/components/ca/case/CaseDocumentRequests";
-import { CaseReviewPanel } from "@/components/ca/case/CaseReviewPanel";
+import { StatementValidation, TransactionReview } from "@/components/ca/case/CaseReviewPanel";
 import { CaseStatements } from "@/components/ca/case/CaseStatements";
+import { CaseTabs } from "@/components/ca/case/CaseTabs";
+import { Badge } from "@/components/ui/Badge";
 import { getCaCase } from "@/lib/ca-case";
+import { pendingItems, type PendingKey } from "@/lib/case-priority";
 import type { CaseDetail } from "@/lib/case-review";
 import { nextAction } from "@/lib/case-readiness";
 import { CASE_STATUS_LABELS } from "@/lib/case-status";
+import { caseTabHref, parseCaseTab, type CaseTab } from "@/lib/case-tabs";
 import { INCOME_SOURCES } from "@/lib/checklist";
 import { CA_INTAKE_STEP_LABELS } from "@/lib/intake";
 
@@ -20,7 +24,7 @@ export const dynamic = "force-dynamic";
 
 function Shell({ children }: { children: React.ReactNode }) {
   return (
-    <div className="mx-auto max-w-6xl px-4 py-10 sm:px-6 sm:py-14">
+    <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6 sm:py-10">
       <Link href="/ca" className="text-sm font-medium text-teal underline">← Back to dashboard</Link>
       {children}
     </div>
@@ -45,7 +49,7 @@ function SummaryStrip({ detail }: { detail: CaseDetail }) {
       r.documents.required_outstanding ? "text-amber-ink" : undefined],
   ];
   return (
-    <div className="mt-6 rounded-2xl border border-line bg-surface p-5">
+    <div className="rounded-2xl border border-line bg-surface p-5">
       <dl className="grid gap-4 text-sm sm:grid-cols-2 lg:grid-cols-4">
         {items.map(([label, value, tone]) => (
           <div key={label}>
@@ -62,8 +66,127 @@ function SummaryStrip({ detail }: { detail: CaseDetail }) {
   );
 }
 
-export default async function CaCasePage({ params }: { params: Promise<{ reference: string }> }) {
+// Where each open item is handled: another tab, or a section of the overview.
+function pendingHref(reference: string, key: PendingKey): string {
+  if (key === "documents") return caseTabHref(reference, "documents");
+  if (key === "transactions") return caseTabHref(reference, "transactions");
+  if (key === "unverified") return `${caseTabHref(reference, "overview")}#validation`;
+  if (key === "details") return `${caseTabHref(reference, "overview")}#intake`;
+  return `${caseTabHref(reference, "overview")}#statements`;
+}
+
+// The overview's answer to "what is left on this case", from the same stored
+// facts as the dashboard queue. Not a judgement that a return is ready to file.
+function OutstandingActions({ detail }: { detail: CaseDetail }) {
+  const { case: c } = detail;
+  const items = c.status === "closed" ? [] : pendingItems(
+    { reference: c.reference, status: c.status, updated_at: c.updated_at, readiness: detail.readiness, intake: detail.intake },
+    detail.statements.map((s) => s.status));
+  return (
+    <section aria-labelledby="outstanding" className="rounded-2xl border border-line bg-surface p-5">
+      <h2 id="outstanding" className="text-lg font-semibold tracking-tight">Outstanding actions</h2>
+      <p className="mt-1 text-xs text-ink-faint">From the case&rsquo;s stored data; not a judgement that a return is ready to file.</p>
+      {items.length === 0 ? (
+        <p className="mt-4 text-sm text-ink-soft">
+          {c.status === "closed" ? "The case is closed." : "Nothing pending in the stored data."}
+        </p>
+      ) : (
+        <ul className="mt-4 space-y-2">
+          {items.map((item) => (
+            <li key={item.key} className="flex items-center justify-between gap-3 rounded-xl border border-line bg-paper px-4 py-2.5 text-sm">
+              <span>{item.label}</span>
+              <Link href={pendingHref(c.reference, item.key)} className="shrink-0 text-xs font-medium text-teal underline">
+                Go to it<span className="sr-only">: {item.label}</span>
+              </Link>
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
+  );
+}
+
+function IntakeProgress({ detail }: { detail: CaseDetail }) {
+  const { case: c, intake, profile } = detail;
+  const when = (iso: string | null) => (iso ? `${iso.slice(0, 16).replace("T", " ")} UTC` : "—");
+  return (
+    <section id="intake" aria-labelledby="intake-heading" className="scroll-mt-32 rounded-2xl border border-line bg-surface p-5 text-sm">
+      <h2 id="intake-heading" className="text-lg font-semibold tracking-tight">Client intake</h2>
+      <p className="mt-1 text-xs text-ink-faint">
+        {intake.steps.filter((s) => s.done).length} of {intake.steps.length} steps{intake.complete ? " complete" : ""} ·
+        details {profile.complete ? "complete" : "incomplete"}
+      </p>
+      <dl className="mt-4 grid gap-4 sm:grid-cols-3">
+        <div className="sm:col-span-3">
+          <dt className="text-xs text-ink-soft">Client intake</dt>
+          <dd className="mt-1 flex flex-wrap gap-x-6 gap-y-1">
+            {intake.steps.map((s) => (
+              <span key={s.key} className={s.done ? "text-teal-deep" : "font-medium text-amber-ink"}>
+                {s.done ? "✓" : "○"} {CA_INTAKE_STEP_LABELS[s.key]}
+                {!s.done && s.key === "documents" ? ` (${s.outstanding} outstanding)` : ""}
+              </span>
+            ))}
+          </dd>
+        </div>
+        <div className="sm:col-span-3">
+          <dt className="text-xs text-ink-soft">Client said these applied in FY {c.financial_year}</dt>
+          <dd className="mt-1 font-medium">
+            {profile.income_sources.length
+              ? profile.income_sources.map((code) => INCOME_SOURCES.find((s) => s.code === code)?.label ?? code).join(" · ")
+              : "Nothing selected"}
+          </dd>
+        </div>
+        <div>
+          <dt className="text-xs text-ink-soft">Last updated</dt>
+          <dd className="mt-1">{when(c.updated_at)}</dd>
+        </div>
+        <div>
+          <dt className="text-xs text-ink-soft">Last client upload</dt>
+          <dd className="mt-1">{when(intake.last_client_upload_at)}</dd>
+        </div>
+        <div>
+          <dt className="text-xs text-ink-soft">Review prepared</dt>
+          <dd className="mt-1">{when(c.reviewed_at)}</dd>
+        </div>
+      </dl>
+    </section>
+  );
+}
+
+function TabContent({ tab, detail }: { tab: CaseTab; detail: CaseDetail }) {
+  const { case: c, statements, review, document_requests, checklist } = detail;
+  const closed = c.status === "closed";
+  if (tab === "transactions") return <TransactionReview reference={c.reference} review={review} caseClosed={closed} />;
+  if (tab === "documents") {
+    return (
+      <>
+        <CaseChecklist reference={c.reference} items={checklist} caseClosed={closed} />
+        <CaseDocumentRequests reference={c.reference} requests={document_requests} caseClosed={closed} />
+      </>
+    );
+  }
+  if (tab === "summary") return <CaseItrSummary reference={c.reference} review={review} />;
+  return (
+    <>
+      <div className="mt-8 grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+        <OutstandingActions detail={detail} />
+        <IntakeProgress detail={detail} />
+      </div>
+      <div className="mt-4">
+        <SummaryStrip detail={detail} />
+      </div>
+      <StatementValidation review={review} />
+      <CaseStatements reference={c.reference} statements={statements} review={review} caseClosed={closed} />
+    </>
+  );
+}
+
+export default async function CaCasePage({ params, searchParams }: {
+  params: Promise<{ reference: string }>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
   const { reference } = await params;
+  const tab = parseCaseTab((await searchParams).tab);
   const result = await getCaCase(reference);
   if (result.state === "signed_out") redirect("/ca/login");
   if (result.state === "not_found") {
@@ -85,74 +208,29 @@ export default async function CaCasePage({ params }: { params: Promise<{ referen
     );
   }
 
-  const { case: c, intake, profile, statements, review, document_requests, checklist } = result.detail;
-  const when = (iso: string | null) => (iso ? `${iso.slice(0, 16).replace("T", " ")} UTC` : "—");
+  const { case: c, profile, review, readiness } = result.detail;
   return (
     <Shell>
-      <header className="mt-6 flex flex-wrap items-end justify-between gap-4">
-        <div>
+      <header className="mt-5 flex flex-wrap items-end justify-between gap-4">
+        <div className="min-w-0">
           <p className="font-mono text-xs uppercase tracking-[0.18em] text-teal">Case {c.reference}</p>
-          <h1 className="mt-3 font-serif text-3xl font-medium tracking-tight sm:text-4xl">
+          <h1 className="mt-2 break-words font-serif text-2xl font-semibold tracking-tight sm:text-3xl">
             {profile.full_name ?? c.client_first_name}
           </h1>
-          <p className="mt-2 text-sm text-ink-soft">
+          <p className="mt-1.5 break-words text-sm text-ink-soft">
             {c.client_email}{c.client_email_verified ? "" : " (email not verified)"} · FY {c.financial_year} · opened{" "}
             {c.created_at.slice(0, 10)}
           </p>
         </div>
-        <span className="rounded-full bg-paper-deep px-3 py-1 text-sm font-medium">
-          {CASE_STATUS_LABELS[c.status] ?? c.status}
-        </span>
+        <Badge tone="neutral" size="md">{CASE_STATUS_LABELS[c.status] ?? c.status}</Badge>
       </header>
 
-      <SummaryStrip detail={result.detail} />
+      <CaseTabs reference={c.reference} current={tab} counts={{
+        transactions: review ? review.totals.confirm + review.totals.manual : 0,
+        documents: readiness.documents.required_outstanding,
+      }} />
 
-      <details className="mt-4 rounded-2xl border border-line bg-surface p-5 text-sm">
-        <summary className="cursor-pointer font-medium">
-          Client intake: {intake.steps.filter((s) => s.done).length} of {intake.steps.length} steps
-          {intake.complete ? " complete" : ""} · details {profile.complete ? "complete" : "incomplete"}
-        </summary>
-      <dl className="mt-4 grid gap-4 sm:grid-cols-3">
-        <div className="sm:col-span-3">
-          <dt className="text-xs text-ink-soft">Client said these applied in FY {c.financial_year}</dt>
-          <dd className="mt-1 font-medium">
-            {profile.income_sources.length
-              ? profile.income_sources.map((code) => INCOME_SOURCES.find((s) => s.code === code)?.label ?? code).join(" · ")
-              : "Nothing selected"}
-          </dd>
-        </div>
-        <div className="sm:col-span-3">
-          <dt className="text-xs text-ink-soft">Client intake</dt>
-          <dd className="mt-1 flex flex-wrap gap-x-6 gap-y-1">
-            {intake.steps.map((s) => (
-              <span key={s.key} className={s.done ? "text-teal-deep" : "font-medium text-amber-ink"}>
-                {s.done ? "✓" : "○"} {CA_INTAKE_STEP_LABELS[s.key]}
-                {!s.done && s.key === "documents" ? ` (${s.outstanding} outstanding)` : ""}
-              </span>
-            ))}
-          </dd>
-        </div>
-        <div>
-          <dt className="text-xs text-ink-soft">Last updated</dt>
-          <dd className="mt-1">{when(c.updated_at)}</dd>
-        </div>
-        <div>
-          <dt className="text-xs text-ink-soft">Last client upload</dt>
-          <dd className="mt-1">{when(intake.last_client_upload_at)}</dd>
-        </div>
-        <div>
-          <dt className="text-xs text-ink-soft">Review prepared</dt>
-          <dd className="mt-1">{when(c.reviewed_at)}</dd>
-        </div>
-      </dl>
-      </details>
-
-      <CaseStatements reference={c.reference} statements={statements} review={review} caseClosed={c.status === "closed"} />
-      <CaseReviewPanel reference={c.reference} review={review} caseClosed={c.status === "closed"} />
-      <CaseChecklist reference={c.reference} items={checklist} caseClosed={c.status === "closed"} />
-      <CaseDocumentRequests reference={c.reference} requests={document_requests}
-                            caseClosed={c.status === "closed"} />
-      <CaseItrSummary reference={c.reference} review={review} />
+      <TabContent tab={tab} detail={result.detail} />
     </Shell>
   );
 }

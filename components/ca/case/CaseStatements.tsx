@@ -15,7 +15,7 @@ export function CaseStatements({ reference, statements, review, caseClosed }: {
   return (
     <section aria-labelledby="statements" className="mt-8 overflow-hidden rounded-2xl border border-line bg-surface">
       <div className="border-b border-line px-5 py-4">
-        <h2 id="statements" className="font-serif text-lg font-medium">Uploaded statements</h2>
+        <h2 id="statements" className="scroll-mt-32 font-serif text-lg font-medium">Uploaded statements</h2>
         <p className="mt-1 text-sm text-ink-soft">
           Choose the statement to review. Preparing a review re-reads the stored file on this server and classifies its
           transactions; it replaces any earlier review for this case.
