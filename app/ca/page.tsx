@@ -6,6 +6,7 @@ import { FirmCodePanel } from "@/components/ca/FirmCodePanel";
 import { LogoutButton } from "@/components/ca/LogoutButton";
 import { getCaSession } from "@/lib/ca-session";
 import { needsAttention, nextAction, STATEMENT_LABELS, STATEMENT_TONES } from "@/lib/case-readiness";
+import { intakeSummary } from "@/lib/intake";
 import { CASE_STATUS_LABELS as STATUS_LABELS } from "@/lib/case-status";
 
 export const metadata: Metadata = { title: "CA dashboard · ITR Intake" };
@@ -77,13 +78,14 @@ export default async function CaDashboard() {
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[880px] text-left text-sm">
+            <table className="w-full min-w-[980px] text-left text-sm">
               <thead className="bg-paper text-xs uppercase tracking-wide text-ink-faint">
                 <tr>
                   <th scope="col" className="px-5 py-3 font-medium">Reference</th>
                   <th scope="col" className="px-5 py-3 font-medium">Client</th>
                   <th scope="col" className="px-5 py-3 font-medium">Financial year</th>
                   <th scope="col" className="px-5 py-3 font-medium">Status</th>
+                  <th scope="col" className="px-5 py-3 font-medium">Client intake</th>
                   <th scope="col" className="px-5 py-3 font-medium">Statement</th>
                   <th scope="col" className="px-5 py-3 font-medium">Required documents</th>
                   <th scope="col" className="px-5 py-3 font-medium">Next step</th>
@@ -104,9 +106,15 @@ export default async function CaDashboard() {
                     <td className="px-5 py-3.5">
                       <span className="font-medium">{c.profile.full_name ?? c.client_first_name}</span>
                       <span className="block text-xs text-ink-faint">{c.client_email}</span>
+                      {!c.client_email_verified && (
+                        <span className="block text-xs text-ink-faint">Email not verified</span>
+                      )}
                     </td>
                     <td className="px-5 py-3.5 text-ink-soft">{c.financial_year}</td>
                     <td className="px-5 py-3.5">{STATUS_LABELS[c.status] ?? c.status}</td>
+                    <td className={`whitespace-nowrap px-5 py-3.5 text-xs ${c.intake.complete ? "text-teal-deep" : "text-amber-ink"}`}>
+                      {intakeSummary(c.intake)}
+                    </td>
                     <td className="px-5 py-3.5">
                       <span className={`whitespace-nowrap rounded-full px-2.5 py-0.5 text-xs font-medium ${STATEMENT_TONES[r.statement]}`}>
                         {STATEMENT_LABELS[r.statement]}

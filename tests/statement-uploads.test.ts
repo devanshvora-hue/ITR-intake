@@ -9,11 +9,10 @@ import { POST as openCase } from "@/app/api/client/cases/route";
 import { POST as saveProfile } from "@/app/api/client/cases/[reference]/profile/route";
 import { POST as uploadRoute } from "@/app/api/client/cases/[reference]/statements/route";
 import { POST as start } from "@/app/api/client/start/route";
-import { POST as verify } from "@/app/api/client/verify/route";
 import { financialYearOptions } from "@/lib/server/client-auth";
 import { MemoryStore, setFileStoreForTests, StorageError } from "@/lib/server/storage";
 import { onboardCa } from "./helpers/ca";
-import { Client, mailedToken, rows, setupTestServer } from "./helpers/http";
+import { Client, rows, setupTestServer } from "./helpers/http";
 import { goodPdf } from "./helpers/synthetic-pdf";
 
 setupTestServer();
@@ -34,7 +33,6 @@ async function clientWithCase(ca: Client, email = "client-one@example.test", pro
   const code = (await (await ca.post(createCode)).json()).firm_code.code;
   const client = new Client();
   await client.post(start, { firm_code: code, email });
-  await client.post(verify, { token: await mailedToken(email) });
   const { reference } = (await (await client.post(openCase, { first_name: "Asha", financial_year: FY })).json()).case;
   if (profile) {
     await client.post(saveProfile, { full_name: "Asha Rao", bank_name: "Synthetic Bank Ltd" }, { params: { reference } });

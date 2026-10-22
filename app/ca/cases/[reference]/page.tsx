@@ -7,6 +7,8 @@ import { CaseReviewPanel } from "@/components/ca/case/CaseReviewPanel";
 import { CaseStatements } from "@/components/ca/case/CaseStatements";
 import { getCaCase } from "@/lib/ca-case";
 import { CASE_STATUS_LABELS } from "@/lib/case-status";
+import { INCOME_SOURCES } from "@/lib/checklist";
+import { CA_INTAKE_STEP_LABELS } from "@/lib/intake";
 
 export const metadata: Metadata = { title: "Case · ITR Intake" };
 // Checked on every request: the API verifies the CA session and returns only
@@ -45,7 +47,8 @@ export default async function CaCasePage({ params }: { params: Promise<{ referen
     );
   }
 
-  const { case: c, profile, statements, review, document_requests, checklist } = result.detail;
+  const { case: c, intake, profile, statements, review, document_requests, checklist } = result.detail;
+  const when = (iso: string | null) => (iso ? `${iso.slice(0, 16).replace("T", " ")} UTC` : "—");
   return (
     <Shell>
       <header className="mt-6 flex flex-wrap items-end justify-between gap-4">
@@ -55,7 +58,8 @@ export default async function CaCasePage({ params }: { params: Promise<{ referen
             {profile.full_name ?? c.client_first_name}
           </h1>
           <p className="mt-2 text-sm text-ink-soft">
-            {c.client_email} · FY {c.financial_year} · opened {c.created_at.slice(0, 10)}
+            {c.client_email}{c.client_email_verified ? "" : " (email not verified)"} · FY {c.financial_year} · opened{" "}
+            {c.created_at.slice(0, 10)}
           </p>
         </div>
         <span className="rounded-full bg-paper-deep px-3 py-1 text-sm font-medium">
@@ -75,6 +79,37 @@ export default async function CaCasePage({ params }: { params: Promise<{ referen
         <div>
           <dt className="text-xs text-ink-soft">Client details</dt>
           <dd className="mt-1 font-medium">{profile.complete ? "Complete" : "Incomplete"}</dd>
+        </div>
+        <div className="sm:col-span-3">
+          <dt className="text-xs text-ink-soft">Client said these applied in FY {c.financial_year}</dt>
+          <dd className="mt-1 font-medium">
+            {profile.income_sources.length
+              ? profile.income_sources.map((code) => INCOME_SOURCES.find((s) => s.code === code)?.label ?? code).join(" · ")
+              : "Nothing selected"}
+          </dd>
+        </div>
+        <div className="sm:col-span-3">
+          <dt className="text-xs text-ink-soft">Client intake</dt>
+          <dd className="mt-1 flex flex-wrap gap-x-6 gap-y-1">
+            {intake.steps.map((s) => (
+              <span key={s.key} className={s.done ? "text-teal-deep" : "font-medium text-amber-ink"}>
+                {s.done ? "✓" : "○"} {CA_INTAKE_STEP_LABELS[s.key]}
+                {!s.done && s.key === "documents" ? ` (${s.outstanding} outstanding)` : ""}
+              </span>
+            ))}
+          </dd>
+        </div>
+        <div>
+          <dt className="text-xs text-ink-soft">Last updated</dt>
+          <dd className="mt-1">{when(c.updated_at)}</dd>
+        </div>
+        <div>
+          <dt className="text-xs text-ink-soft">Last client upload</dt>
+          <dd className="mt-1">{when(intake.last_client_upload_at)}</dd>
+        </div>
+        <div>
+          <dt className="text-xs text-ink-soft">Review prepared</dt>
+          <dd className="mt-1">{when(c.reviewed_at)}</dd>
         </div>
       </dl>
 

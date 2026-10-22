@@ -12,11 +12,10 @@ import { POST as openCase } from "@/app/api/client/cases/route";
 import { POST as saveProfile } from "@/app/api/client/cases/[reference]/profile/route";
 import { POST as uploadRoute } from "@/app/api/client/cases/[reference]/statements/route";
 import { POST as start } from "@/app/api/client/start/route";
-import { POST as verify } from "@/app/api/client/verify/route";
 import { financialYearOptions } from "@/lib/server/client-auth";
 import { MemoryStore, setFileStoreForTests } from "@/lib/server/storage";
 import { onboardCa } from "./helpers/ca";
-import { Client, env, mailedToken, rows, setupTestServer } from "./helpers/http";
+import { Client, env, rows, setupTestServer } from "./helpers/http";
 import { goodPdf } from "./helpers/synthetic-pdf";
 
 setupTestServer();
@@ -40,8 +39,7 @@ async function setup(tag = "a") {
   const code = (await (await ca.post(createCode)).json()).firm_code.code;
   const client = new Client();
   const email = `client-${tag}@example.test`;
-  await client.post(start, { firm_code: code, email });
-  await client.post(verify, { token: await mailedToken(email) });
+  expect((await client.post(start, { firm_code: code, email })).status).toBe(200); // signs in directly
   const { reference } = (await (await client.post(openCase, { first_name: "Asha", financial_year: FY })).json()).case;
   await client.post(saveProfile, { full_name: "Asha Rao", bank_name: "Synthetic Bank Ltd", account_last4: "1234" }, { params: { reference } });
   return { ca, client, reference };

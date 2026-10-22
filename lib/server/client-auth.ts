@@ -1,5 +1,7 @@
 // Client onboarding (ported from client_auth.py): firm code + e-mail, an
-// e-mailed sign-in link, client sessions and opening a case.
+// e-mailed sign-in link, client sessions and opening a case. The website now
+// signs clients in directly (client-entry.ts); the e-mailed-link functions
+// here are kept so verification can be switched back on.
 //
 // A client's firm, identity and firm code come only from the server-side
 // session; nothing accepts a client, firm or case ID from the browser. The
@@ -114,11 +116,13 @@ export async function authenticateClient(db: Db, token: unknown, now: Date = new
     await revokeSession(db, session.id);
     return null;
   }
-  const [identity] = await db.query<{ id: string; email_norm: string; email_verified_at: Date | null }>(
-    "SELECT id, email_norm, email_verified_at FROM client_identities WHERE id = $1 AND firm_id = $2",
+  // Direct entry (client-entry.ts) creates sessions for identities whose e-mail
+  // is not verified, so a verified e-mail is no longer required here.
+  const [identity] = await db.query<{ id: string; email_norm: string }>(
+    "SELECT id, email_norm FROM client_identities WHERE id = $1 AND firm_id = $2",
     [session.client_identity_id, session.firm_id]);
   const [firm] = await db.query<{ status: string }>("SELECT status FROM firms WHERE id = $1", [session.firm_id]);
-  if (!identity || !firm || firm.status !== "active" || identity.email_verified_at === null) {
+  if (!identity || !firm || firm.status !== "active") {
     await revokeSession(db, session.id);
     return null;
   }

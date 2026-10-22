@@ -3,6 +3,7 @@
 // case_review.py `review_view`); nothing here is invented by the frontend.
 import type { CaChecklistItem } from "./checklist";
 import type { DocumentRequest } from "./document-requests";
+import type { IntakeProgress } from "./intake";
 import type { StatementUpload } from "./statements";
 
 export type CaseInfo = {
@@ -13,6 +14,8 @@ export type CaseInfo = {
   updated_at: string;
   client_first_name: string;
   client_email: string;
+  client_email_verified: boolean;
+  reviewed_at: string | null;
 };
 
 export type CaseProfile = {
@@ -64,6 +67,7 @@ export type CaseReview = {
 
 export type CaseDetail = {
   case: CaseInfo;
+  intake: IntakeProgress;
   profile: CaseProfile;
   statements: StatementUpload[];
   review: CaseReview | null;

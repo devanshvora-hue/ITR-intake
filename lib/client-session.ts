@@ -3,6 +3,7 @@
 // the client, firm and firm code from the session, never from the browser.
 import type { ClientChecklistItem } from "./checklist";
 import type { DocumentRequest } from "./document-requests";
+import type { IntakeProgress } from "./intake";
 import { apiGet } from "./self-api";
 import type { StatementUpload } from "./statements";
 
@@ -25,6 +26,7 @@ export type ClientCase = {
   statements: StatementUpload[];
   document_requests: DocumentRequest[];
   checklist: ClientChecklistItem[];
+  intake: IntakeProgress;
 };
 
 export type UploadLimits = { pdf_bytes: number; csv_bytes: number; statements_per_case: number; pdf_pages: number };

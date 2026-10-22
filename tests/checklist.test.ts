@@ -14,13 +14,12 @@ import { POST as saveProfile } from "@/app/api/client/cases/[reference]/profile/
 import { POST as statementRoute } from "@/app/api/client/cases/[reference]/statements/route";
 import { GET as clientMe } from "@/app/api/client/me/route";
 import { POST as start } from "@/app/api/client/start/route";
-import { POST as verify } from "@/app/api/client/verify/route";
 import type { CaChecklistItem, ClientChecklistItem } from "@/lib/checklist";
 import { evaluateChecklist, type ChecklistFacts } from "@/lib/server/checklist";
 import { financialYearOptions } from "@/lib/server/client-auth";
 import { MemoryStore, setFileStoreForTests } from "@/lib/server/storage";
 import { onboardCa } from "./helpers/ca";
-import { Client, env, mailedToken, rows, setupTestServer } from "./helpers/http";
+import { Client, env, rows, setupTestServer } from "./helpers/http";
 
 const facts = (declared: string[] = [], detected: Record<string, number> = {}): ChecklistFacts =>
   ({ financialYear: "2025-26", declared: new Set(declared), detected: new Map(Object.entries(detected)) });
@@ -99,8 +98,7 @@ async function setup(tag = "a", profile: Record<string, unknown> | null = PROFIL
   const code = (await (await ca.post(createCode)).json()).firm_code.code;
   const client = new Client();
   const email = `client-${tag}@example.test`;
-  await client.post(start, { firm_code: code, email });
-  await client.post(verify, { token: await mailedToken(email) });
+  expect((await client.post(start, { firm_code: code, email })).status).toBe(200); // signs in directly
   const { reference } = (await (await client.post(openCase, { first_name: "Asha", financial_year: FY })).json()).case;
   if (profile) expect((await client.post(saveProfile, profile, { params: { reference } })).status).toBe(200);
   return { ca, client, reference };

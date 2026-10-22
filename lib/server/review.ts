@@ -274,11 +274,13 @@ export async function buildCaseWorkbook(db: Db, firmId: string, caseRow: ReviewC
 }
 
 /** A case of the caller's firm by reference (with the client's e-mail), or null. */
-export async function firmCaseByReference(db: Db, firmId: string, reference: unknown): Promise<(ReviewCase & { client_email: string }) | null> {
+export async function firmCaseByReference(db: Db, firmId: string, reference: unknown):
+  Promise<(ReviewCase & { client_email: string; client_email_verified: boolean }) | null> {
   if (typeof reference !== "string" || !/^IT-[A-Z]{1,12}-[0-9A-Z]{6}$/.test(reference)) return null;
-  const [row] = await db.query<ReviewCase & { client_email: string }>(
+  const [row] = await db.query<ReviewCase & { client_email: string; client_email_verified: boolean }>(
     `SELECT c.*, c.opening_balance::text AS opening_balance, c.closing_balance::text AS closing_balance,
-            c.period_start::text AS period_start, c.period_end::text AS period_end, i.email_norm AS client_email
+            c.period_start::text AS period_start, c.period_end::text AS period_end, i.email_norm AS client_email,
+            i.email_verified_at IS NOT NULL AS client_email_verified
      FROM cases c JOIN client_identities i ON i.id = c.client_identity_id AND i.firm_id = c.firm_id
      WHERE c.reference = $1 AND c.firm_id = $2`, [reference, firmId]);
   return row ?? null;

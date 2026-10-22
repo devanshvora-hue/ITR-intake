@@ -3,12 +3,14 @@ import { PlaceholderTag } from "@/components/PlaceholderTag";
 import { ClientCaseForm } from "@/components/client/ClientCaseForm";
 import { ClientLogoutButton } from "@/components/client/ClientLogoutButton";
 import { ClientProfileForm } from "@/components/client/ClientProfileForm";
+import { ClientResumeCode } from "@/components/client/ClientResumeCode";
 import { ClientStartForm } from "@/components/client/ClientStartForm";
 import { ClientChecklist } from "@/components/client/ClientChecklist";
 import { DocumentRequests } from "@/components/client/DocumentRequests";
 import { StatementList } from "@/components/client/StatementList";
 import { StatementUploader } from "@/components/client/StatementUploader";
 import { getClientSession, type ClientMe } from "@/lib/client-session";
+import { INTAKE_STEP_LABELS, type IntakeProgress } from "@/lib/intake";
 
 export const metadata: Metadata = { title: "Client portal · ITR Intake" };
 // Checked on every request: the API resolves the client session cookie.
@@ -77,6 +79,25 @@ function NextSteps() {
   );
 }
 
+// Server-computed progress: a step is ticked only when its data is stored.
+function Progress({ intake }: { intake: IntakeProgress }) {
+  return (
+    <div className="border-b border-line px-6 py-4">
+      <p className="text-sm font-medium">
+        {intake.complete ? "Everything your CA has asked for so far is in. Your CA will be in touch." : "What's left"}
+      </p>
+      <ul className="mt-2 flex flex-wrap gap-x-6 gap-y-1 text-sm">
+        {intake.steps.map((s) => (
+          <li key={s.key} className={s.done ? "text-teal-deep" : "text-amber-ink"}>
+            {s.done ? "✓" : "○"} {INTAKE_STEP_LABELS[s.key]}
+            {!s.done && s.key === "documents" && s.outstanding ? ` (${s.outstanding} still needed)` : ""}
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
 function SignedIn({ me }: { me: ClientMe }) {
   return (
     <div className="mx-auto max-w-6xl px-4 py-10 sm:px-6 sm:py-14">
@@ -85,8 +106,11 @@ function SignedIn({ me }: { me: ClientMe }) {
       </Header>
       <p className="mt-6 text-sm text-ink-soft">
         Signed in as <span className="font-medium text-ink">{me.client.email}</span> with{" "}
-        <span className="font-medium text-ink">{me.firm.name}</span>
+        <span className="font-medium text-ink">{me.firm.name}</span>. Your answers and uploads are saved as you go.
       </p>
+      <div className="mt-2">
+        <ClientResumeCode />
+      </div>
 
       <div className="mt-8 grid gap-6 lg:grid-cols-[1.2fr_1fr]">
         <section aria-labelledby="intakes" className="rounded-2xl border border-line bg-white">
@@ -138,6 +162,7 @@ function SignedIn({ me }: { me: ClientMe }) {
             </h2>
             <span className="font-mono text-[13px] text-ink-soft">{c.reference}</span>
           </div>
+          <Progress intake={c.intake} />
           <div className="grid gap-8 p-6 lg:grid-cols-2">
             <div>
               <h3 className="font-medium">Your details</h3>
@@ -197,17 +222,21 @@ export default async function ClientPortal() {
         <section aria-labelledby="begin" className="rounded-2xl border border-line bg-white p-6">
           <h2 id="begin" className="font-serif text-xl font-medium">1. Find your CA firm</h2>
           <p className="mt-2 text-sm text-ink-soft">
-            Enter the firm code your CA gave you and your email address. We&rsquo;ll email you a link to continue.
+            Enter the firm code your CA gave you and your email address to start or continue your intake.
           </p>
           <div className="mt-5">
             <ClientStartForm />
           </div>
         </section>
         <section aria-labelledby="why" className="rounded-2xl border border-line bg-paper-deep p-6">
-          <h2 id="why" className="font-serif text-xl font-medium">2. Confirm your email</h2>
+          <h2 id="why" className="font-serif text-xl font-medium">2. Fill in your intake</h2>
           <p className="mt-2 text-sm leading-relaxed text-ink-soft">
-            The link proves the email address is yours. After opening it you choose the financial year, and your
-            intake appears in your CA&rsquo;s dashboard. You never need a password.
+            Choose the financial year, add your details, upload your bank statement and any documents your CA asks for.
+            Everything is saved as you go and appears in your CA&rsquo;s dashboard. You never need a password.
+          </p>
+          <p className="mt-4 text-sm leading-relaxed text-ink-soft">
+            When you first start you get a <span className="font-medium text-ink">resume code</span>. Keep it: you need it
+            to continue from another device or browser.
           </p>
           <p className="mt-4 text-sm leading-relaxed text-ink-soft">
             Please use synthetic details in this prototype.

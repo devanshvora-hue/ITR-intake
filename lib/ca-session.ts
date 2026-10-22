@@ -2,6 +2,7 @@
 // the browser's cookies. Used by server components to protect CA pages; the
 // API remains the authority on every request.
 import type { CaseReadiness } from "./case-readiness";
+import type { IntakeProgress } from "./intake";
 import { apiGet } from "./self-api";
 import type { StatementUpload } from "./statements";
 
@@ -19,8 +20,10 @@ export type CaCase = {
   created_at: string;
   client_first_name: string;
   client_email: string;
+  client_email_verified: boolean;
   profile: { full_name: string | null; bank_name: string | null; account_last4: string | null; complete: boolean };
   readiness: CaseReadiness;
+  intake: IntakeProgress;
 };
 
 export type CaStatement = StatementUpload & {
