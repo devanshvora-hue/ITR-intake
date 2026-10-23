@@ -58,7 +58,8 @@ function ListRow({ row, selected, dirty, onChoose }: { row: ReviewRow; selected:
         {row.group !== "rejected" && <Amount row={row} />}
       </div>
       <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1">
-        <span className="text-xs text-ink-faint">
+        {/* The faint ink is only 4.48:1 on the indigo highlight; the soft ink keeps the selected row at AA. */}
+        <span className={`text-xs ${selected ? "text-ink-soft" : "text-ink-faint"}`}>
           #{row.row_number}{row.source_page ? ` · p.${row.source_page}` : ""} · {row.date ?? "date not read"}
         </span>
         <Badge tone={GROUP_TONES[row.group]}>{GROUP_LABELS[row.group]}</Badge>

@@ -3,6 +3,7 @@
 // state and for each state of the detail panel. The full page with a real
 // review from the routes is in case-page-render.test.ts. Synthetic rows only.
 
+import { readFileSync } from "node:fs";
 import { createElement, type ReactNode } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -159,6 +160,38 @@ describe("workspace", () => {
     expect(markup).toMatch(/<section aria-labelledby="txn-detail" class="hidden [^"]*lg:block/);
     expect(markup).toMatch(/<button type="button" class="mb-3 text-sm font-medium text-teal underline lg:hidden">← Back to list<\/button>/);
     expect(markup).toContain("lg:grid-cols-[minmax(0,1fr)_24rem]");
+  });
+
+  it("keeps the selected row's small text at WCAG AA on the indigo highlight", () => {
+    // Found on production: "#12 · p.2 · date" in the faint ink was 4.48:1 on the selected row.
+    const markup = html(createElement(ReviewWorkspace, { reference: "IT-A", review: review(), caseClosed: false }));
+    const option = (n: number) => new RegExp(`<li id="txn-${n}" role="option"[^>]*>(.*?)</li>`).exec(markup)![1];
+    expect(option(2)).toMatch(/<span class="text-xs text-ink-soft">#2 · 2025-04-02<\/span>/); // selected
+    expect(option(3)).toMatch(/<span class="text-xs text-ink-faint">#3 · 2025-04-03<\/span>/); // not selected
+    expect(markup).toMatch(/<li id="txn-2" role="option" aria-selected="true" class="[^"]*bg-accent-bg/);
+
+    // The colours behind those classes inside the dark CA theme.
+    const css = readFileSync(new URL("../app/globals.css", import.meta.url), "utf8");
+    const block = (re: RegExp) => Object.fromEntries([...re.exec(css)![1].matchAll(/--color-([a-z0-9-]+):\s*([^;]+);/g)]
+      .map(([, name, value]) => [name, value.trim().toLowerCase()]));
+    const light = block(/@theme \{([\s\S]*?)\n\}/), dark = block(/\.theme-ca \{([\s\S]*?)\n\}/);
+    const value = (name: string): string => {
+      let v = dark[name] ?? light[name];
+      while (v.startsWith("var(")) { const ref = /var\(--color-([a-z0-9-]+)\)/.exec(v)![1]; v = dark[ref] ?? light[ref]; }
+      return v;
+    };
+    const lum = (hex: string) => [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255)
+      .map((c) => (c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4))
+      .reduce((sum, c, i) => sum + c * [0.2126, 0.7152, 0.0722][i], 0);
+    const contrast = (a: string, b: string) => {
+      const [hi, lo] = [lum(value(a)), lum(value(b))].sort((x, y) => y - x);
+      return (hi + 0.05) / (lo + 0.05);
+    };
+    expect(contrast("ink-faint", "accent-bg")).toBeLessThan(4.5); // why the selected row cannot use it
+    for (const fg of ["ink", "ink-soft", "teal-deep", "warning-fg"]) {
+      expect(contrast(fg, "accent-bg"), `${fg} on the selected row`).toBeGreaterThanOrEqual(4.5);
+    }
+    expect(contrast("ink-faint", "surface")).toBeGreaterThanOrEqual(4.5); // unselected rows are fine as they are
   });
 
   it("explains an empty list and an empty selection", () => {
