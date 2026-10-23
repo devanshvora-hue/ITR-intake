@@ -4,7 +4,7 @@ import { RECONCILIATION_LABELS, UNVERIFIED_REASONS } from "@/lib/case-review";
 import { caseTabHref } from "@/lib/case-tabs";
 import { formatInr } from "@/lib/money";
 import { describe } from "@/lib/statements";
-import { ReviewTable } from "./ReviewTable";
+import { ReviewWorkspace } from "./ReviewWorkspace";
 
 const RECON_TONES: Record<string, string> = {
   passed: "border-teal/30 bg-teal-wash text-teal-deep",
@@ -115,7 +115,7 @@ export function TransactionReview({ reference, review, caseClosed }: { reference
         Categories describe what each transaction appears to be; they are not tax conclusions. Your decisions are saved
         with the case and survive preparing the review again; the extracted rows are never changed.
       </p>
-      <ReviewTable reference={reference} review={review} caseClosed={caseClosed} />
+      <ReviewWorkspace reference={reference} review={review} caseClosed={caseClosed} />
     </section>
   );
 }
