@@ -114,6 +114,67 @@ body {
   --font-serif: var(--font-plex-sans), ui-sans-serif, system-ui, sans-serif;
 }
 
+/* The light site: home page, client portal and not-found (components/SiteChrome).
+   A cool, neutral palette with the brand blue as its accent, so it belongs with
+   the dark CA workspace without copying it. Like .theme-ca, every token is set
+   explicitly. Contrast is checked in tests/client-portal.test.ts. In this theme
+   teal is the brand blue for links and fills, and teal-deep the success green. */
+.theme-site {
+  --color-paper: #f6f7f9;
+  --color-paper-deep: #edf0f4;
+  --color-line: #e2e6ed;
+  --color-ink: #0f1626;
+  --color-ink-soft: #475166;
+  --color-ink-faint: #5f6b80;
+  --color-teal: #1d4fc4;
+  --color-teal-deep: #146c4e;
+  --color-teal-wash: #e6f4ee;
+  --color-amber-wash: #fdf1dc;
+  --color-amber-ink: #8a4b00;
+  --color-rose-wash: #fcebea;
+  --color-rose-ink: #a1332b;
+
+  --color-surface: #ffffff;
+  --color-control: #7d889c;
+  --color-on-accent: #ffffff;
+  --color-accent: #1d4fc4;
+  --color-accent-strong: #173fa0;
+  --color-accent-bg: #e9effc;
+  --color-accent-fg: #1d4fc4;
+  --color-success-bg: #e6f4ee;
+  --color-success-fg: #146c4e;
+  --color-warning-bg: #fdf1dc;
+  --color-warning-fg: #8a4b00;
+  --color-danger-bg: #fcebea;
+  --color-danger-fg: #a1332b;
+  --color-neutral-bg: #edf0f4;
+  --color-neutral-fg: #475166;
+  --color-muted-fg: #5f6b80;
+}
+
+body:has(.theme-site) {
+  background: #f6f7f9;
+}
+
+.theme-site ::selection {
+  background: #e9effc;
+}
+
+.theme-site :focus-visible {
+  outline: 2px solid #1d4fc4;
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .theme-site *,
+  .theme-site *::before,
+  .theme-site *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
 /* No light band when a CA page is shorter than the window or overscrolls. */
 body:has(.theme-ca) {
   background: var(--color-ca-midnight);

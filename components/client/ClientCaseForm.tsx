@@ -52,7 +52,7 @@ export function ClientCaseForm({ years }: { years: string[] }) {
           name="financial_year"
           required
           defaultValue={years[1] ?? years[0]}
-          className="mt-1.5 w-full rounded-lg border border-line bg-white px-3 py-2 text-sm focus:border-teal focus:outline-none"
+          className="mt-1.5 w-full rounded-lg border border-control bg-surface px-3 py-2.5 text-sm focus:border-teal focus:outline-none"
         >
           {years.map((y) => (
             <option key={y} value={y}>

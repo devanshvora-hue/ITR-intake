@@ -23,7 +23,7 @@ export function NavLinks() {
             aria-current={active ? "page" : undefined}
             className={`rounded-md px-3 py-1.5 transition-colors ${
               active
-                ? "bg-teal-wash font-medium text-teal-deep"
+                ? "bg-accent-bg font-medium text-accent-fg"
                 : "text-ink-soft hover:bg-paper-deep hover:text-ink"
             }`}
           >

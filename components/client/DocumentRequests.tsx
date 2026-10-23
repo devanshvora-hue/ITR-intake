@@ -15,6 +15,9 @@ import {
 } from "@/lib/document-requests";
 import { formatBytes } from "@/lib/statements";
 
+// Still-needed requests first, then received, then waived (otherwise in the API's order).
+const ORDER: Record<string, number> = { requested: 0, received: 1, waived: 2 };
+
 function Uploader({ reference, request }: { reference: string; request: DocumentRequest }) {
   const router = useRouter();
   const input = useRef<HTMLInputElement>(null);
@@ -66,16 +69,19 @@ function Uploader({ reference, request }: { reference: string; request: Document
   return (
     <form onSubmit={onSubmit} className="mt-3 space-y-2">
       <label htmlFor={`dr-${request.id}`} className="block text-sm font-medium">Upload a file</label>
-      <input id={`dr-${request.id}`} ref={input} type="file" accept={DOCUMENT_ACCEPT}
-             disabled={full || progress !== null}
-             className="block w-full text-sm file:mr-3 file:rounded-lg file:border file:border-line file:bg-white file:px-3 file:py-2 file:text-sm" />
+      <div className={`rounded-xl border-2 border-dashed px-4 py-4 transition-colors ${full
+        ? "border-line bg-paper-deep" : "border-control bg-paper hover:border-accent"}`}>
+        <input id={`dr-${request.id}`} ref={input} type="file" accept={DOCUMENT_ACCEPT}
+               disabled={full || progress !== null}
+               className="block w-full cursor-pointer text-sm text-ink-soft file:mr-3 file:cursor-pointer file:rounded-lg file:border-0 file:bg-accent file:px-4 file:py-3 file:text-sm file:font-medium file:text-on-accent hover:file:bg-accent-strong disabled:cursor-not-allowed disabled:file:opacity-60" />
+      </div>
       <p className="text-xs text-ink-faint">
         PDF, JPEG or PNG, up to {formatBytes(MAX_DOCUMENT_BYTES)} each. {request.files.length} of {MAX_FILES_PER_REQUEST} files uploaded.
       </p>
       {progress !== null && (
         <div role="status" className="space-y-1">
           <div className="h-2 overflow-hidden rounded-full bg-paper-deep">
-            <div className="h-full bg-teal transition-all" style={{ width: `${Math.round(progress * 100)}%` }} />
+            <div className="h-full bg-accent transition-all" style={{ width: `${Math.round(progress * 100)}%` }} />
           </div>
           <p className="text-xs text-ink-soft">Uploading… {Math.round(progress * 100)}%</p>
         </div>
@@ -101,8 +107,8 @@ export function DocumentRequests({ reference, requests, caseClosed }: {
   if (requests.length === 0) return <p className="text-sm text-ink-soft">Your CA has not requested any documents.</p>;
   return (
     <ul className="space-y-3">
-      {requests.map((r) => (
-        <li key={r.id} className="rounded-xl border border-line p-4">
+      {[...requests].sort((a, b) => ORDER[a.status] - ORDER[b.status]).map((r) => (
+        <li key={r.id} className={`rounded-xl border p-4 ${r.status === "requested" ? "border-control bg-surface" : "border-line bg-paper"}`}>
           <div className="flex flex-wrap items-center justify-between gap-2">
             <p className="text-sm font-medium">
               {r.label}{" "}

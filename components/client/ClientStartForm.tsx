@@ -53,7 +53,7 @@ export function ClientStartForm() {
     return (
       <div className="space-y-4">
         <FormMessage tone="info">You&rsquo;re in. Your intake is saved as you go.</FormMessage>
-        <div className="rounded-xl border border-line bg-paper-deep p-4">
+        <div className="rounded-xl border border-accent/30 bg-accent-bg p-4">
           <p className="text-sm font-medium">Your resume code</p>
           <p className="mt-2 font-mono text-2xl tracking-wider">{newCode}</p>
           <p className="mt-2 text-sm text-ink-soft">

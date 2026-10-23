@@ -15,7 +15,7 @@ import {
 } from "@/lib/checklist";
 
 const smallButton =
-  "rounded-lg border border-line bg-white px-3 py-1.5 text-xs font-medium hover:border-ink-faint disabled:opacity-60";
+  "rounded-lg border border-control bg-surface px-3 py-2 text-sm font-medium hover:border-ink-soft disabled:opacity-60";
 
 function Item({ reference, item, caseClosed }: { reference: string; item: ClientChecklistItem; caseClosed: boolean }) {
   const router = useRouter();
@@ -50,7 +50,7 @@ function Item({ reference, item, caseClosed }: { reference: string; item: Client
   }
 
   return (
-    <li className="rounded-xl border border-line p-4">
+    <li className="rounded-xl border border-line bg-paper p-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="text-sm font-medium">{item.label}</p>
         <span className={`rounded-full px-3 py-1 text-xs font-medium ${LEVEL_TONES[item.level]}`}>
@@ -77,7 +77,7 @@ function Item({ reference, item, caseClosed }: { reference: string; item: Client
           </label>
           <textarea id={`note-${item.id}`} rows={2} maxLength={MAX_RESPONSE_NOTE} value={note}
                     onChange={(e) => setNote(e.target.value)}
-                    className="w-full rounded-lg border border-line bg-white px-3 py-2 text-sm focus:border-teal focus:outline-none" />
+                    className="w-full rounded-lg border border-control bg-surface px-3 py-2 text-sm focus:border-teal focus:outline-none" />
           <div className="flex gap-2">
             <button type="button" className={smallButton} disabled={busy} onClick={() => send(choosing, note)}>
               {busy ? "Saving…" : "Save"}

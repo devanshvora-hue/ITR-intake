@@ -16,7 +16,7 @@ const FIELD_ERRORS: Record<string, string> = {
 };
 
 const inputClass =
-  "mt-1.5 w-full rounded-lg border border-line bg-white px-3 py-2 text-sm focus:border-teal focus:outline-none";
+  "mt-1.5 w-full rounded-lg border border-control bg-surface px-3 py-2.5 text-sm focus:border-teal focus:outline-none";
 
 // Collects only what statement processing and the document checklist need.
 // Never asks for PAN, Aadhaar, full account numbers or passwords.
@@ -91,10 +91,11 @@ export function ClientProfileForm({ reference, financialYear, profile }: {
         <p className="mt-1 text-xs text-ink-faint">
           This only helps suggest which documents to gather. Leave everything unticked if you are not sure; your CA will ask.
         </p>
-        <div className="mt-2 space-y-1.5">
+        <div className="mt-3 grid gap-2 sm:grid-cols-2">
           {INCOME_SOURCES.map((s) => (
-            <label key={s.code} className="flex items-start gap-2 text-sm">
-              <input type="checkbox" name="income_sources" value={s.code} className="mt-0.5"
+            <label key={s.code}
+                   className="flex cursor-pointer items-start gap-3 rounded-lg border border-line bg-surface px-3 py-2.5 text-sm transition-colors hover:border-control has-[:checked]:border-accent has-[:checked]:bg-accent-bg">
+              <input type="checkbox" name="income_sources" value={s.code} className="mt-0.5 size-4 shrink-0 accent-accent"
                      defaultChecked={profile.income_sources?.includes(s.code)} />
               {s.label}
             </label>

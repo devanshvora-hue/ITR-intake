@@ -1,16 +1,16 @@
 import type { Metadata } from "next";
-import { PlaceholderTag } from "@/components/PlaceholderTag";
 import { ClientCaseForm } from "@/components/client/ClientCaseForm";
+import { ClientChecklist } from "@/components/client/ClientChecklist";
 import { ClientLogoutButton } from "@/components/client/ClientLogoutButton";
 import { ClientProfileForm } from "@/components/client/ClientProfileForm";
 import { ClientResumeCode } from "@/components/client/ClientResumeCode";
 import { ClientStartForm } from "@/components/client/ClientStartForm";
-import { ClientChecklist } from "@/components/client/ClientChecklist";
 import { DocumentRequests } from "@/components/client/DocumentRequests";
 import { StatementList } from "@/components/client/StatementList";
 import { StatementUploader } from "@/components/client/StatementUploader";
-import { getClientSession, type ClientMe } from "@/lib/client-session";
-import { INTAKE_STEP_LABELS, type IntakeProgress } from "@/lib/intake";
+import { Badge } from "@/components/ui/Badge";
+import { getClientSession, type ClientCase, type ClientMe } from "@/lib/client-session";
+import { clientNextStep, INTAKE_STEP_LABELS } from "@/lib/intake";
 
 export const metadata: Metadata = { title: "Client portal · ITR Intake" };
 // Checked on every request: the API resolves the client session cookie.
@@ -28,180 +28,206 @@ const STATUS_LABELS: Record<string, string> = {
   closed: "Closed",
 };
 
-const nextSteps = [
-  {
-    title: "Guided clarification",
-    body: "We'll ask short questions about specific transactions in your statement. Each question depends on what you've already told us, so you only answer what's relevant.",
-  },
-  {
-    title: "Review by your CA",
-    body: "Your CA reviews everything you've shared and contacts you only if something is still unclear.",
-  },
+const card = "rounded-2xl border border-line bg-surface";
+
+// --- signed out: the welcome ------------------------------------------------------------------------------
+
+// The three things a client actually does here, in order.
+const STEPS = [
+  { title: "Enter your CA's firm code", body: "With your email address. You are signed in straight away; there is no password." },
+  { title: "Add your details and bank statement", body: "Your name, bank and the last four digits of the account, then a statement for the year." },
+  { title: "Upload what your CA asks for", body: "Requested documents appear here. Everything is saved as you go." },
 ];
 
-function Header({ children }: { children?: React.ReactNode }) {
+function Welcome({ unavailable }: { unavailable: boolean }) {
   return (
-    <header className="flex flex-wrap items-end justify-between gap-4">
-      <div className="max-w-2xl">
-        <p className="font-mono text-xs uppercase tracking-[0.18em] text-teal">Client portal</p>
-        <h1 className="mt-3 font-serif text-3xl font-medium tracking-tight sm:text-4xl">Start your income tax intake</h1>
-        <p className="mt-4 leading-relaxed text-ink-soft">
-          Your CA&rsquo;s team uses what you share here to prepare focused questions and a document checklist for you.
-        </p>
-      </div>
-      {children}
-    </header>
-  );
-}
+    <div className="mx-auto max-w-6xl px-4 py-10 sm:px-6 sm:py-16">
+      {/* Phones: headline, form, then the steps. Wide screens: the form in its own column beside both. */}
+      <div className="grid gap-8 lg:grid-cols-[minmax(0,1.05fr)_minmax(0,1fr)] lg:grid-rows-[auto_1fr] lg:gap-x-14">
+        <div className="lg:col-start-1 lg:row-start-1">
+          <p className="font-mono text-xs uppercase tracking-[0.18em] text-teal">Client portal</p>
+          <h1 className="mt-3 max-w-xl font-serif text-3xl font-medium leading-tight tracking-tight sm:text-[2.6rem]">
+            Share what your CA needs for your income tax return.
+          </h1>
+          <p className="mt-4 max-w-lg leading-relaxed text-ink-soft">
+            Your CA&rsquo;s firm uses this portal to collect your bank statement and supporting documents in one place.
+          </p>
+        </div>
 
-function NextSteps() {
-  return (
-    <section aria-labelledby="next" className="mt-12">
-      <div className="flex flex-wrap items-center gap-3">
-        <h2 id="next" className="font-serif text-2xl font-medium">What happens next</h2>
-        <PlaceholderTag>Coming in later stages</PlaceholderTag>
-      </div>
-      <ol className="mt-6 grid gap-4 md:grid-cols-3">
-        {nextSteps.map((s, i) => (
-          <li key={s.title} className="rounded-xl border border-line bg-white p-5">
-            <span className="flex h-7 w-7 items-center justify-center rounded-full bg-teal-wash font-mono text-xs text-teal-deep">
-              {i + 4}
-            </span>
-            <h3 className="mt-3 font-medium">{s.title}</h3>
-            <p className="mt-2 text-sm leading-relaxed text-ink-soft">{s.body}</p>
-          </li>
-        ))}
-      </ol>
-      <p className="mt-6 text-sm text-ink-faint">
-        Your CA&rsquo;s internal working files stay within the firm and are not shown in this portal.
-      </p>
-    </section>
-  );
-}
+        <section aria-labelledby="begin" className={`${card} self-start p-5 sm:p-7 lg:col-start-2 lg:row-span-2 lg:row-start-1`}>
+          <h2 id="begin" className="text-lg font-semibold tracking-tight">Start or continue your intake</h2>
+          <p className="mt-1.5 text-sm text-ink-soft">
+            When you first start you get a <span className="font-medium text-ink">resume code</span>. Keep it: you need it
+            to continue on another device or browser.
+          </p>
+          {unavailable && (
+            <p role="alert" className="mt-4 rounded-lg bg-danger-bg px-3 py-2 text-sm text-danger-fg">
+              The ITR Intake server is not reachable. Please try again later.
+            </p>
+          )}
+          <div className="mt-5">
+            <ClientStartForm />
+          </div>
+          <p className="mt-5 border-t border-line pt-4 text-xs text-ink-faint">
+            Please use synthetic details in this prototype. Your CA&rsquo;s internal working files stay with the firm and are
+            not shown here.
+          </p>
+        </section>
 
-// Server-computed progress: a step is ticked only when its data is stored.
-function Progress({ intake }: { intake: IntakeProgress }) {
-  return (
-    <div className="border-b border-line px-6 py-4">
-      <p className="text-sm font-medium">
-        {intake.complete ? "Everything your CA has asked for so far is in. Your CA will be in touch." : "What's left"}
-      </p>
-      <ul className="mt-2 flex flex-wrap gap-x-6 gap-y-1 text-sm">
-        {intake.steps.map((s) => (
-          <li key={s.key} className={s.done ? "text-teal-deep" : "text-amber-ink"}>
-            {s.done ? "✓" : "○"} {INTAKE_STEP_LABELS[s.key]}
-            {!s.done && s.key === "documents" && s.outstanding ? ` (${s.outstanding} still needed)` : ""}
-          </li>
-        ))}
-      </ul>
+        <ol aria-label="How it works" className="max-w-lg space-y-5 lg:col-start-1 lg:row-start-2">
+          {STEPS.map((s, i) => (
+            <li key={s.title} className="flex gap-4">
+              <span aria-hidden="true"
+                    className="flex size-8 shrink-0 items-center justify-center rounded-full border border-line bg-surface font-mono text-xs text-teal">
+                {i + 1}
+              </span>
+              <div>
+                <p className="font-medium">{s.title}</p>
+                <p className="mt-0.5 text-sm text-ink-soft">{s.body}</p>
+              </div>
+            </li>
+          ))}
+        </ol>
+      </div>
     </div>
   );
 }
 
-function SignedIn({ me }: { me: ClientMe }) {
+// --- signed in: one workspace per intake ------------------------------------------------------------------
+
+function StepTrack({ c }: { c: ClientCase }) {
   return (
-    <div className="mx-auto max-w-6xl px-4 py-10 sm:px-6 sm:py-14">
-      <Header>
-        <ClientLogoutButton />
-      </Header>
-      <p className="mt-6 text-sm text-ink-soft">
-        Signed in as <span className="font-medium text-ink">{me.client.email}</span> with{" "}
-        <span className="font-medium text-ink">{me.firm.name}</span>. Your answers and uploads are saved as you go.
-      </p>
-      <div className="mt-2">
-        <ClientResumeCode />
-      </div>
-
-      <div className="mt-8 grid gap-6 lg:grid-cols-[1.2fr_1fr]">
-        <section aria-labelledby="intakes" className="rounded-2xl border border-line bg-white">
-          <div className="border-b border-line px-6 py-4">
-            <h2 id="intakes" className="font-serif text-xl font-medium">1. Your intakes</h2>
-          </div>
-          {me.cases.length === 0 ? (
-            <p className="px-6 py-10 text-center text-sm text-ink-soft">
-              You have not started an intake with {me.firm.name} yet.
-            </p>
-          ) : (
-            <ul className="divide-y divide-line">
-              {me.cases.map((c) => (
-                <li key={c.reference} className="flex flex-wrap items-center justify-between gap-2 px-6 py-4">
-                  <div>
-                    <p className="font-mono text-[13px]">{c.reference}</p>
-                    <p className="mt-0.5 text-sm text-ink-soft">FY {c.financial_year} · started {c.created_at.slice(0, 10)}</p>
-                  </div>
-                  <span className="rounded-full bg-teal-wash px-3 py-1 text-xs font-medium text-teal-deep">
-                    {STATUS_LABELS[c.status] ?? c.status}
-                  </span>
-                </li>
-              ))}
-            </ul>
-          )}
-        </section>
-
-        <section aria-labelledby="start" className="rounded-2xl border border-line bg-white p-6">
-          <h2 id="start" className="font-serif text-xl font-medium">2. Start an intake</h2>
-          {me.can_open_case ? (
-            <div className="mt-5">
-              <ClientCaseForm years={me.financial_years} />
-            </div>
-          ) : (
-            <p className="mt-4 rounded-lg bg-rose-wash px-3 py-2 text-sm text-rose-ink">
-              The firm code you used is no longer active, so a new intake cannot be started. Please ask your CA for
-              their current code and start again.
-            </p>
-          )}
-        </section>
-      </div>
-
-      {me.cases.map((c) => (
-        <section key={c.reference} aria-labelledby={`case-${c.reference}`}
-                 className="mt-8 rounded-2xl border border-line bg-white">
-          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-line px-6 py-4">
-            <h2 id={`case-${c.reference}`} className="font-serif text-xl font-medium">
-              3. FY {c.financial_year} statement
-            </h2>
-            <span className="font-mono text-[13px] text-ink-soft">{c.reference}</span>
-          </div>
-          <Progress intake={c.intake} />
-          <div className="grid gap-8 p-6 lg:grid-cols-2">
-            <div>
-              <h3 className="font-medium">Your details</h3>
-              <div className="mt-4">
-                <ClientProfileForm reference={c.reference} financialYear={c.financial_year} profile={c.profile} />
-              </div>
-            </div>
-            <div className="space-y-6">
-              <div>
-                <h3 className="font-medium">Upload your bank statement</h3>
-                <div className="mt-4">
-                  <StatementUploader reference={c.reference} limits={me.upload_limits} disabled={!c.profile.complete} />
-                </div>
-              </div>
-              <div>
-                <h3 className="font-medium">Uploaded statements</h3>
-                <div className="mt-3">
-                  <StatementList statements={c.statements} />
-                </div>
-              </div>
-              <div>
-                <h3 className="font-medium">Documents you may need</h3>
-                <div className="mt-3">
-                  <ClientChecklist reference={c.reference} items={c.checklist} caseClosed={c.status === "closed"} />
-                </div>
-              </div>
-              <div>
-                <h3 className="font-medium">Documents your CA asked for</h3>
-                <div className="mt-3">
-                  <DocumentRequests reference={c.reference} requests={c.document_requests}
-                                    caseClosed={c.status === "closed"} />
-                </div>
-              </div>
-            </div>
-          </div>
-        </section>
+    <ol aria-label="Your progress" className="grid gap-2 sm:grid-cols-3">
+      {c.intake.steps.map((s, i) => (
+        <li key={s.key}
+            className={`flex items-center gap-3 rounded-xl border px-3 py-2.5 text-sm ${s.done ? "border-line bg-success-bg" : "border-line bg-surface"}`}>
+          <span aria-hidden="true"
+                className={`flex size-6 shrink-0 items-center justify-center rounded-full text-xs font-medium ${s.done
+                  ? "bg-success-fg text-white" : "border border-control text-ink-soft"}`}>
+            {s.done ? "✓" : i + 1}
+          </span>
+          <span className="min-w-0">
+            <span className="block font-medium">{INTAKE_STEP_LABELS[s.key]}</span>
+            <span className={`block text-xs ${s.done ? "text-success-fg" : "text-ink-faint"}`}>
+              {s.done ? "Done" : s.key === "documents" && s.outstanding ? `${s.outstanding} still needed` : "To do"}
+            </span>
+          </span>
+        </li>
       ))}
+    </ol>
+  );
+}
 
-      <NextSteps />
+function Section({ id, title, children, aside }: { id: string; title: string; children: React.ReactNode; aside?: React.ReactNode }) {
+  return (
+    <section aria-labelledby={id} className={`${card} scroll-mt-6 p-5 sm:p-6`}>
+      <div className="flex flex-wrap items-baseline justify-between gap-2">
+        <h3 id={id} className="text-base font-semibold tracking-tight">{title}</h3>
+        {aside}
+      </div>
+      <div className="mt-4">{children}</div>
+    </section>
+  );
+}
+
+function IntakeCase({ c, me }: { c: ClientCase; me: ClientMe }) {
+  const id = (part: string) => `${part}-${c.reference}`;
+  const closed = c.status === "closed";
+  const next = clientNextStep(c.intake, c.status, c.statements.map((s) => s.status));
+  const nextHref = next.key === "details" ? `#${id("details")}` : next.key === "statement" ? `#${id("statement")}`
+    : next.key === "documents" ? `#${id("requested")}` : null;
+  const outstanding = c.document_requests.filter((r) => r.status === "requested").length;
+
+  return (
+    <article aria-labelledby={id("case")} className="space-y-4">
+      <header className="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <h2 id={id("case")} className="font-serif text-2xl font-medium tracking-tight">Financial year {c.financial_year}</h2>
+          <p className="mt-1 font-mono text-xs text-ink-faint">
+            {c.reference} · started {c.created_at.slice(0, 10)}
+          </p>
+        </div>
+        <Badge tone={closed ? "neutral" : "accent"} size="md">{STATUS_LABELS[c.status] ?? c.status}</Badge>
+      </header>
+
+      <StepTrack c={c} />
+
+      <div className={`rounded-2xl border px-5 py-4 ${next.key === "done" ? "border-line bg-success-bg" : "border-accent/30 bg-accent-bg"}`}>
+        <p className="text-xs font-medium uppercase tracking-wide text-ink-soft">
+          {next.key === "done" || next.key === "closed" ? "Status" : "Your next step"}
+        </p>
+        <p className="mt-1 text-lg font-semibold tracking-tight">{next.title}</p>
+        <p className="mt-0.5 text-sm text-ink-soft">{next.detail}</p>
+        {nextHref && (
+          <a href={nextHref} className="mt-3 inline-block text-sm font-medium text-teal underline underline-offset-2">Go to it</a>
+        )}
+      </div>
+
+      <Section id={id("details")} title="Your details">
+        <ClientProfileForm reference={c.reference} financialYear={c.financial_year} profile={c.profile} />
+      </Section>
+
+      <Section id={id("statement")} title="Bank statement">
+        <StatementUploader reference={c.reference} limits={me.upload_limits} disabled={!c.profile.complete} />
+        {c.statements.length > 0 && (
+          <div className="mt-5 border-t border-line pt-5">
+            <h4 className="text-sm font-medium">Uploaded statements</h4>
+            <div className="mt-3"><StatementList statements={c.statements} /></div>
+          </div>
+        )}
+      </Section>
+
+      <Section id={id("requested")} title="Documents your CA asked for"
+               aside={c.document_requests.length > 0 && (
+                 <span className="text-xs text-ink-soft">{outstanding} waiting · {c.document_requests.length} in all</span>
+               )}>
+        <DocumentRequests reference={c.reference} requests={c.document_requests} caseClosed={closed} />
+      </Section>
+
+      <Section id={id("suggested")} title="Documents you may need">
+        <ClientChecklist reference={c.reference} items={c.checklist} caseClosed={closed} />
+      </Section>
+    </article>
+  );
+}
+
+function SignedIn({ me }: { me: ClientMe }) {
+  const startForm = me.can_open_case ? <ClientCaseForm years={me.financial_years} /> : (
+    <p className="rounded-lg bg-danger-bg px-3 py-2 text-sm text-danger-fg">
+      The firm code you used is no longer active, so a new intake cannot be started. Please ask your CA for their current
+      code and start again.
+    </p>
+  );
+  return (
+    <div className="mx-auto max-w-3xl px-4 py-8 sm:px-6 sm:py-12">
+      <header className="flex flex-wrap items-start justify-between gap-4">
+        <div className="min-w-0">
+          <p className="font-mono text-xs uppercase tracking-[0.18em] text-teal">Client portal · {me.firm.name}</p>
+          <h1 className="mt-2 font-serif text-3xl font-medium tracking-tight">Your income tax intake</h1>
+          <p className="mt-2 break-words text-sm text-ink-soft">
+            Signed in as <span className="font-medium text-ink">{me.client.email}</span>. Your answers and uploads are saved
+            as you go.
+          </p>
+          <div className="mt-2"><ClientResumeCode /></div>
+        </div>
+        <ClientLogoutButton />
+      </header>
+
+      {me.cases.length === 0 ? (
+        <section aria-labelledby="start" className={`${card} mt-8 p-5 sm:p-7`}>
+          <h2 id="start" className="text-lg font-semibold tracking-tight">Start your intake</h2>
+          <p className="mt-1 text-sm text-ink-soft">You have not started an intake with {me.firm.name} yet.</p>
+          <div className="mt-5">{startForm}</div>
+        </section>
+      ) : (
+        <div className="mt-8 space-y-12">
+          {me.cases.map((c) => <IntakeCase key={c.reference} c={c} me={me} />)}
+          <details className={`${card} p-5 sm:p-6`}>
+            <summary className="cursor-pointer text-sm font-medium">Start an intake for another financial year</summary>
+            <div className="mt-5">{startForm}</div>
+          </details>
+        </div>
+      )}
     </div>
   );
 }
@@ -209,41 +235,5 @@ function SignedIn({ me }: { me: ClientMe }) {
 export default async function ClientPortal() {
   const session = await getClientSession();
   if (session.state === "signed_in") return <SignedIn me={session.me} />;
-
-  return (
-    <div className="mx-auto max-w-6xl px-4 py-10 sm:px-6 sm:py-14">
-      <Header />
-      {session.state === "unavailable" && (
-        <p className="mt-6 rounded-lg bg-rose-wash px-4 py-3 text-sm text-rose-ink">
-          The ITR Intake server is not reachable. Please try again later.
-        </p>
-      )}
-      <div className="mt-8 grid gap-6 lg:grid-cols-[1fr_1.2fr]">
-        <section aria-labelledby="begin" className="rounded-2xl border border-line bg-white p-6">
-          <h2 id="begin" className="font-serif text-xl font-medium">1. Find your CA firm</h2>
-          <p className="mt-2 text-sm text-ink-soft">
-            Enter the firm code your CA gave you and your email address to start or continue your intake.
-          </p>
-          <div className="mt-5">
-            <ClientStartForm />
-          </div>
-        </section>
-        <section aria-labelledby="why" className="rounded-2xl border border-line bg-paper-deep p-6">
-          <h2 id="why" className="font-serif text-xl font-medium">2. Fill in your intake</h2>
-          <p className="mt-2 text-sm leading-relaxed text-ink-soft">
-            Choose the financial year, add your details, upload your bank statement and any documents your CA asks for.
-            Everything is saved as you go and appears in your CA&rsquo;s dashboard. You never need a password.
-          </p>
-          <p className="mt-4 text-sm leading-relaxed text-ink-soft">
-            When you first start you get a <span className="font-medium text-ink">resume code</span>. Keep it: you need it
-            to continue from another device or browser.
-          </p>
-          <p className="mt-4 text-sm leading-relaxed text-ink-soft">
-            Please use synthetic details in this prototype.
-          </p>
-        </section>
-      </div>
-      <NextSteps />
-    </div>
-  );
+  return <Welcome unavailable={session.state === "unavailable"} />;
 }

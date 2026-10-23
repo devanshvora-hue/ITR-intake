@@ -77,15 +77,18 @@ export function StatementUploader({ reference, limits, disabled }: {
 
   return (
     <form onSubmit={onSubmit} className="space-y-3">
-      <label htmlFor={`file-${reference}`} className="block text-sm font-medium">Bank statement (PDF or CSV)</label>
-      <input
-        id={`file-${reference}`}
-        ref={input}
-        type="file"
-        accept=".pdf,.csv,application/pdf,text/csv"
-        disabled={disabled || progress !== null}
-        className="block w-full text-sm file:mr-3 file:rounded-lg file:border file:border-line file:bg-white file:px-3 file:py-2 file:text-sm"
-      />
+      <label htmlFor={`file-${reference}`} className="block text-sm font-medium">Choose your statement (PDF or CSV)</label>
+      <div className={`rounded-xl border-2 border-dashed px-4 py-5 transition-colors ${disabled
+        ? "border-line bg-paper-deep" : "border-control bg-paper hover:border-accent"}`}>
+        <input
+          id={`file-${reference}`}
+          ref={input}
+          type="file"
+          accept=".pdf,.csv,application/pdf,text/csv"
+          disabled={disabled || progress !== null}
+          className="block w-full cursor-pointer text-sm text-ink-soft file:mr-3 file:cursor-pointer file:rounded-lg file:border-0 file:bg-accent file:px-4 file:py-3 file:text-sm file:font-medium file:text-on-accent hover:file:bg-accent-strong disabled:cursor-not-allowed disabled:file:opacity-60"
+        />
+      </div>
       <p className="text-xs text-ink-faint">
         PDF up to {formatBytes(limits.pdf_bytes)} and {limits.pdf_pages} pages (a text-based statement downloaded from
         your bank, not a scan or photo, and not password-protected), or CSV up to {formatBytes(limits.csv_bytes)} in
@@ -94,7 +97,7 @@ export function StatementUploader({ reference, limits, disabled }: {
       {progress !== null && (
         <div className="space-y-1" role="status">
           <div className="h-2 overflow-hidden rounded-full bg-paper-deep">
-            <div className="h-full bg-teal transition-all" style={{ width: `${Math.round(progress * 100)}%` }} />
+            <div className="h-full bg-accent transition-all" style={{ width: `${Math.round(progress * 100)}%` }} />
           </div>
           <p className="text-xs text-ink-soft">
             {progress < 1 ? `Uploading… ${Math.round(progress * 100)}%` : "Reading the statement…"}
