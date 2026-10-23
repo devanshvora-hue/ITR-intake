@@ -8,7 +8,7 @@ export function SiteHeader() {
       <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-x-4 gap-y-2 px-4 py-3 sm:px-6">
         <Link href="/" className="flex items-center gap-2.5 rounded-md">
           <BrandLockup />
-          <span className="hidden rounded border border-line px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-wider text-ink-faint sm:inline">
+          <span className="hidden rounded border border-line px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wider text-ink-faint sm:inline">
             Prototype
           </span>
         </Link>

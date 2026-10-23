@@ -150,9 +150,14 @@ body {
   --color-neutral-bg: #edf0f4;
   --color-neutral-fg: #475166;
   --color-muted-fg: #5f6b80;
+
+  /* Fraunces is loaded by SiteChrome on this same element (next/font sets --font-fraunces there). */
+  --font-serif: var(--font-fraunces), ui-serif, Georgia, serif;
 }
 
-body:has(.theme-site) {
+/* Only the page frame itself (a direct child of body) sets the page background:
+   a themed panel inside a page, like the landing page's workspace preview, must not. */
+body:has(> .theme-site) {
   background: #f6f7f9;
 }
 
@@ -176,7 +181,7 @@ body:has(.theme-site) {
 }
 
 /* No light band when a CA page is shorter than the window or overscrolls. */
-body:has(.theme-ca) {
+body:has(> .theme-ca) {
   background: var(--color-ca-midnight);
 }
 

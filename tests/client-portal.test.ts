@@ -119,7 +119,8 @@ describe("client portal page", () => {
 
   it("welcomes a signed-out visitor with the real steps and the start form, in the light theme", async () => {
     const markup = await render();
-    expect(markup).toMatch(/^<div class="theme-site /);
+    // The light frame carries the theme and the Fraunces variable (the font loads only for light pages).
+    expect(markup).toMatch(/^<div class="font-fraunces-variable theme-site /);
     expect(markup).not.toContain("theme-ca");
     expect(markup).toContain("Share what your CA needs for your income tax return.");
     for (const step of ["Enter your CA&#x27;s firm code", "Add your details and bank statement", "Upload what your CA asks for"]) {
